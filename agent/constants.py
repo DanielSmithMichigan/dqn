@@ -1,0 +1,14 @@
+NUM_MEMORY_ENTRIES = 10
+
+INDEX = 0
+STATE = 1
+ACTION = 2
+REWARD = 3
+NEXT_STATE = 4
+GAMMA = 5
+IS_TERMINAL = 6
+LOSS = 7
+PRIORITY = 8
+PRIORITY_CACHE = 9
+
+ACTION_NAMES = ["noop", "left", "main", "right"]
