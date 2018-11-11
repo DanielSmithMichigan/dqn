@@ -15,15 +15,15 @@ a = Agent(
     episodeSampleSize=20,
     valueMin=-400.0,
     valueMax=100.0,
-    numAtoms=51,
-    render=False,
+    numAtoms=10,
+    render=True,
     showGraph=True,
 
     maxMemoryLength=100000,
     gamma=1,
-    batchSize=128,
-    networkSize=[64,64,64],
-    learningRate=1e-7,
+    batchSize=256,
+    networkSize=[64,64,512],
+    learningRate=3e-4,
     nStepUpdate=1,
     priorityExponent=.5,
     includeIntermediatePairs=False,
@@ -32,8 +32,8 @@ a = Agent(
     minFramesForTargetUpdate=2048,
     trainNetworkPeriod=4,
     testPeriod=100,
-    epsilonInitial = 1,
-    epsilonDecay = .999
+    epsilonInitial = 2,
+    epsilonDecay = .998
 )
 a.execute()
 

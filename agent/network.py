@@ -42,6 +42,7 @@ class Network:
             self.buildActionProbabilityHead()
             self.buildMaxQHead()
             self.buildProjectOperation()
+            self.buildTrainingOperation()
         self.networkParams = tf.trainable_variables(scope=self.name)
     def buildMaxQHead(self):
         self.qValues = tf.reduce_sum(self.support * self.probabilities, axis=2)
@@ -51,8 +52,9 @@ class Network:
     def buildActionProbabilityHead(self):
         self.actionInput = tf.placeholder(tf.int32, [None,], name="ActionInput")
         self.actionLogits = self.indexInto(self.logits, self.actionInput)
-    def buildTrainingOperation(self, targetDistributionOp):
-        self.loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=tf.stop_gradient(targetDistributionOp),logits=self.actionLogits)
+    def buildTrainingOperation(self):
+        self.targetDistributions = tf.placeholder(tf.float32, [None, self.numAtoms])
+        self.loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.targetDistributions,logits=tf.clip_by_value(self.actionLogits, -1, 2))
         self.mean_loss = tf.reduce_mean(self.loss)
         self.trainingOperation = tf.train.AdamOptimizer(self.learningRate).minimize(self.mean_loss)
     def indexInto(self, ary, indexes):
@@ -71,14 +73,25 @@ class Network:
             self.rewardsInput: util.getColumn(memoryUnits, constants.REWARD),
             self.gammasInput: util.getColumn(memoryUnits, constants.GAMMA)
         })
-    def trainAgainst(self, memoryUnits, targetNetwork):
+    def trainAgainst(self, memoryUnits, support):
         actions = util.getColumn(memoryUnits, constants.ACTION)
-        targets, predictions, loss, _ = self.sess.run([targetNetwork.targetDistributionOp, self.actionLogits, self.loss, self.trainingOperation], feed_dict={
+        targetDistributions = []
+        for i in memoryUnits:
+            targetDistribution = np.zeros(self.numAtoms)
+            lowestDistIndex = -1
+            lowestDist = 1000000000
+            for j in range(len(support)):
+                dist = abs(i[constants.REWARD] - support[j])
+                if (dist < lowestDist):
+                    lowestDist = dist
+                    lowestDistIndex = j
+            targetDistribution[lowestDistIndex] = 1
+            targetDistributions.append(targetDistribution)
+
+        targets, predictions, loss, _ = self.sess.run([self.targetDistributions, self.actionLogits, self.loss, self.trainingOperation], feed_dict={
             self.environmentInput: util.getColumn(memoryUnits, constants.STATE),
             self.actionInput: actions,
-            targetNetwork.environmentInput: util.getColumn(memoryUnits, constants.NEXT_STATE),
-            targetNetwork.rewardsInput: util.getColumn(memoryUnits, constants.REWARD),
-            targetNetwork.gammasInput: util.getColumn(memoryUnits, constants.GAMMA)
+            self.targetDistributions: targetDistributions
         })
         self.losses.append(np.mean(loss))
         for i in range(len(memoryUnits)):
