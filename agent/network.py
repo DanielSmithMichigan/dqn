@@ -17,10 +17,12 @@ class Network:
             learningRate,
             numAtoms,
             valueMin,
-            valueMax
+            valueMax,
+            noisyLayers
         ):
         self.name = name
         self.sess = sess
+        self.noisyLayers = noisyLayers
         self.numAvailableActions = numAvailableActions
         self.numObservations = numObservations
         self.networkSize = networkSize
@@ -34,9 +36,15 @@ class Network:
         with tf.variable_scope(self.name):
             self.environmentInput = tf.placeholder(tf.float32, [None, self.numObservations], "EnvironmentInput")
             prevLayer = self.environmentInput
-            for i in range(len(self.networkSize)):
-                prevLayer = tf.layers.dense(inputs=prevLayer, units=self.networkSize[i], activation=tf.nn.leaky_relu, kernel_initializer=weights_initializer, name="hidden_"+str(i))
-            self.logits = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions * self.numAtoms, kernel_initializer=weights_initializer, name="logits")
+            if (self.noisyLayers):
+                for i in range(len(self.networkSize)):
+                    prevLayer = noisy_dense_layer(inputs=prevLayer, num_units=self.networkSize[i])
+                    prevLayer = tf.nn.leaky_relu(prevLayer)
+                self.logits = noisy_dense_layer(inputs=prevLayer, num_units=self.numAvailableActions * self.numAtoms)
+            else:
+                for i in range(len(self.networkSize)):
+                    prevLayer = tf.layers.dense(inputs=prevLayer, units=self.networkSize[i], activation=tf.nn.leaky_relu, kernel_initializer=weights_initializer, name="hidden_"+str(i))
+                self.logits = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions * self.numAtoms, kernel_initializer=weights_initializer, name="logits")
             self.logits = tf.reshape(self.logits, [-1, self.numAvailableActions, self.numAtoms])
             self.probabilities = tf.nn.softmax(self.logits, axis=2)
             self.buildActionProbabilityHead()

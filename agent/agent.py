@@ -26,7 +26,6 @@ class Agent:
             self,
             sess,
             env,
-            episodeLimit,
             maxMemoryLength,
             gamma,
             batchSize,
@@ -35,14 +34,10 @@ class Agent:
             networkSize,
             learningRate,
             episodeStepLimit,
-            episodeSampleSize,
             nStepUpdate,
             priorityExponent,
             minFramesForTraining,
-            minFramesForTargetUpdate,
             includeIntermediatePairs,
-            updateTargetNetworkPeriod,
-            trainNetworkPeriod,
             numAtoms,
             valueMin,
             valueMax,
@@ -50,23 +45,29 @@ class Agent:
             showGraph,
             epsilonInitial,
             epsilonDecay,
-            testPeriod
+            noisyLayers,
+            numTestPeriods,
+            numTestsPerTestPeriod,
+            episodesPerTest,
+            intermediateTests,
+            rewardsMovingAverageSampleLength
         ):
         self.sess = sess
         self.env = env
         self.epsilonDecay = epsilonDecay
         self.epsilon = epsilonInitial
         self.networkSize = networkSize
-        self.episodeLimit = episodeLimit
+        self.episodesPerTest = episodesPerTest
         self.numAvailableActions = numAvailableActions
-        self.updateTargetNetworkPeriod = updateTargetNetworkPeriod
-        self.trainNetworkPeriod = trainNetworkPeriod
         self.gamma = gamma
         self.episodeStepLimit = episodeStepLimit
         self.totalEpisodeReward = 0
         self.numAtoms = numAtoms
         self.render = render
+        self.numTestPeriods = numTestPeriods
+        self.numTestsPerTestPeriod = numTestsPerTestPeriod
         self.showGraph = showGraph
+        self.numTestsPerTestPeriod = numTestsPerTestPeriod
         self.memoryBuffer = Buffer(
             maxMemoryLength=maxMemoryLength,
             nStepUpdate=nStepUpdate,
@@ -77,7 +78,7 @@ class Agent:
             sess=sess
         )
         self.learnedNetwork = Network(
-            name="learned-network",
+            name="learned-network-"+str(np.random.randint(100000, 999999)),
             sess=sess,
             numObservations=numObservations,
             networkSize=networkSize,
@@ -85,14 +86,30 @@ class Agent:
             learningRate=learningRate,
             numAtoms=numAtoms,
             valueMin=valueMin,
-            valueMax=valueMax
+            valueMax=valueMax,
+            noisyLayers=noisyLayers
         )
         self.minFramesForTraining = minFramesForTraining
-        self.minFramesForTargetUpdate = minFramesForTargetUpdate
         self.support = self.sess.run(self.learnedNetwork.support)
         self.barWidth = self.support[1] - self.support[0]
-        self.testPeriod = testPeriod
-        self.buildGraphs()
+        self.intermediateTests = intermediateTests
+        self.testOutput = []
+        self.rewardsMovingAverageSampleLength = rewardsMovingAverageSampleLength
+        if showGraph:
+            self.buildGraphs()
+        #Build placeholder graph values
+        self.targetExample = np.zeros(self.numAtoms)
+        self.actualExample = np.zeros(self.numAtoms)
+        self.actionExample = 0
+        self.recentTarget = np.zeros(self.numAtoms)
+        self.recentPrediction = np.zeros(self.numAtoms)
+        self.rewardsMovingAverage = []
+        self.rewardsReceivedOverTime = []
+        self.rewardsStdDev = []
+        self.agentAssessmentsOverTime = []
+        self.epsilonOverTime = []
+        self.choicesOverTime = []
+
     def getAgentAssessment(self, state):
         probabilities, maxQ = self.sess.run([
             self.learnedNetwork.probabilities,
@@ -110,9 +127,6 @@ class Agent:
         return action
     def goToNextState(self, currentState, actionChosen, stepNum):
         nextState, reward, done, info = self.env.step(actionChosen)
-        # if (stepNum > self.episodeStepLimit):
-        #     reward = -100
-        #     done = True
         self.totalEpisodeReward = self.totalEpisodeReward + reward
         memoryEntry = np.array(np.zeros(constants.NUM_MEMORY_ENTRIES), dtype=object)
         memoryEntry[constants.STATE] = currentState
@@ -134,40 +148,33 @@ class Agent:
         self.recentAction = actions[choice]
         self.memoryBuffer.updateLossPriorityCache(trainingEpisodes)
     def buildGraphs(self):
-        self.targetExample = np.zeros(self.numAtoms)
-        self.actualExample = np.zeros(self.numAtoms)
-        self.actionExample = 0
         self.overview = plt.figure()
-        self.rewardsReceivedOverTime = []
-        self.rewardsReceivedOverTimeGraph = self.overview.add_subplot(3, 2, 1)
+        self.lastNRewardsGraph = self.overview.add_subplot(4, 1, 1)
+
+        self.rewardsReceivedOverTimeGraph = self.overview.add_subplot(4, 2, 3)
         self.rewardsReceivedOverTimeGraph.set_ylabel('Reward')
         self.rewardsReceivedOverTimeGraph.set_xlabel('Episode #')
 
-        self.lossesGraph = self.overview.add_subplot(3, 2, 2)
+        self.lossesGraph = self.overview.add_subplot(4, 2, 4)
         self.lossesGraph.set_ylabel('Loss amount')
         self.lossesGraph.set_xlabel('Iteration')
 
-        self.agentAssessmentsOverTime = []
-        self.agentAssessmentGraph = self.overview.add_subplot(3, 2, 3)
+        self.agentAssessmentGraph = self.overview.add_subplot(4, 2, 5)
         self.agentAssessmentGraph.set_ylabel('Expected Value')
         self.agentAssessmentGraph.set_xlabel('Episode #')
 
-        self.epsilonOverTime = []
-        self.epsilonOverTimeGraph = self.overview.add_subplot(3, 2, 4)
+        self.epsilonOverTimeGraph = self.overview.add_subplot(4, 2, 6)
         self.epsilonOverTimeGraph.set_ylabel('Epsilon')
         self.epsilonOverTimeGraph.set_xlabel('Episode #')
 
-        self.choicesOverTime = []
-        self.choicesOverTimeGraph = self.overview.add_subplot(3, 1, 3)
+        self.choicesOverTimeGraph = self.overview.add_subplot(4, 1, 4)
 
         self.probabilityDistributions = plt.figure()
 
-        self.recentTarget = np.zeros(self.numAtoms)
         self.recentTargetGraph = self.probabilityDistributions.add_subplot(6, 1, 1)
         self.recentTargetGraph.set_ylabel('Probability')
         self.recentTargetGraph.set_title("Prediction")
 
-        self.recentPrediction = np.zeros(self.numAtoms)
         self.recentPredictionGraph = self.probabilityDistributions.add_subplot(6, 1, 2)
         self.recentPredictionGraph.set_ylabel('Probability')
         self.recentPredictionGraph.set_xlabel('Value')
@@ -191,6 +198,9 @@ class Agent:
 
         self.recentAction = 0
     def updateGraphs(self):
+        self.lastNRewardsGraph.cla()
+        self.lastNRewardsGraph.plot(self.rewardsReceivedOverTime[-self.numTestsPerTestPeriod:], label="Reward")
+        self.lastNRewardsGraph.plot(self.rewardsMovingAverage[-self.numTestsPerTestPeriod:], label="Moving average 20")
         self.rewardsReceivedOverTimeGraph.cla()
         self.rewardsReceivedOverTimeGraph.plot(self.rewardsReceivedOverTime)
         self.lossesGraph.cla()
@@ -200,10 +210,11 @@ class Agent:
         self.epsilonOverTimeGraph.cla()
         self.epsilonOverTimeGraph.plot(self.epsilonOverTime)
         self.choicesOverTimeGraph.cla()
-        self.choicesOverTimeGraph.plot('x', 'y1', util.getColumn(self.choicesOverTime, 0), label=constants.ACTION_NAMES[0])
-        self.choicesOverTimeGraph.plot('x', 'y2', util.getColumn(self.choicesOverTime, 1), label=constants.ACTION_NAMES[1])
-        self.choicesOverTimeGraph.plot('x', 'y3', util.getColumn(self.choicesOverTime, 2), label=constants.ACTION_NAMES[2])
-        self.choicesOverTimeGraph.plot('x', 'y4', util.getColumn(self.choicesOverTime, 3), label=constants.ACTION_NAMES[3])
+        self.choicesOverTimeGraph.plot(util.getColumn(self.choicesOverTime, 0), label=constants.ACTION_NAMES[0])
+        self.choicesOverTimeGraph.plot(util.getColumn(self.choicesOverTime, 1), label=constants.ACTION_NAMES[1])
+        self.choicesOverTimeGraph.plot(util.getColumn(self.choicesOverTime, 2), label=constants.ACTION_NAMES[2])
+        self.choicesOverTimeGraph.plot(util.getColumn(self.choicesOverTime, 3), label=constants.ACTION_NAMES[3])
+        self.choicesOverTimeGraph.plot(util.getColumn(self.choicesOverTime, 4), label="Epsilon", linestyle=":")
         self.choicesOverTimeGraph.legend(loc=2)
         self.overview.canvas.draw()
 
@@ -229,16 +240,18 @@ class Agent:
         # self.denseWeights.canvas.draw()
 
         plt.pause(0.00001)
-    def playEpisode(self):
-        self.epsilon = self.epsilon * self.epsilonDecay
+    def playEpisode(self, useRandomActions, recordTestResult, testNum=0):
+        epsilon = 0
+        if useRandomActions:
+            self.epsilon = self.epsilon * self.epsilonDecay
+            epsilon = min(np.random.random() * self.epsilon, 1)
         self.epsilonOverTime.append(self.epsilon)
-        epsilon = min(np.random.random() * self.epsilon, 1)
         state = self.env.reset()
         self.getAgentAssessment(state)
         self.totalEpisodeReward = 0
         stepNum = 0
         self.episodeMemories = []
-        agentChoices = np.zeros(self.numAvailableActions)
+        agentChoices = np.zeros(self.numAvailableActions + 1)
         while True:
             stepNum = stepNum + 1
             if np.random.random() > epsilon:
@@ -254,21 +267,36 @@ class Agent:
             if done:
                 break
         self.rewardsReceivedOverTime.append(self.totalEpisodeReward)
+        periodResults = self.rewardsReceivedOverTime[-self.numTestsPerTestPeriod:]
+        mu = np.mean(periodResults)
+        std = np.std(periodResults)
+        self.rewardsMovingAverage.append(mu)
+        self.rewardsStdDev.append(std)
         sumChoices = np.sum(agentChoices)
         agentChoices = agentChoices / sumChoices
+        agentChoices[self.numAvailableActions] = epsilon
         self.choicesOverTime.append(agentChoices)
         cumulativeReward = 0
         for i in reversed(self.episodeMemories):
             cumulativeReward = cumulativeReward + i[constants.REWARD]
             i[constants.REWARD] = cumulativeReward
             self.memoryBuffer.addMemory(i)
+        if (recordTestResult):
+            self.testResults.append(self.totalEpisodeReward)
     def execute(self):
         self.sess.run(tf.global_variables_initializer())
-        frames = 0
-        episodeNum = 0
-        for episodeNum in range(self.episodeLimit):
-            self.playEpisode()
-            if len(self.memoryBuffer.memory) > self.minFramesForTraining:
-                self.train()
+        for testNum in range(self.numTestPeriods):
+            print("Test ",testNum)
+            for episodeNum in range(self.episodesPerTest):
+                self.playEpisode(useRandomActions=True,recordTestResult=False)
+                if len(self.memoryBuffer.memory) > self.minFramesForTraining:
+                    self.train()
             if self.showGraph:
                 self.updateGraphs()
+            if self.intermediateTests:
+                self.testResults = []
+                for test_num in range(self.numTestsPerTestPeriod):
+                    self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
+                print("Result "+str(np.mean(self.testResults)))
+                self.testOutput.append(np.mean(self.testResults))
+        return self.testOutput

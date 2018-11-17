@@ -3,8 +3,7 @@ import numpy as np
 import math
 
 def noisy_dense_layer(inputs, num_units, debug=False):
-    initValue = 0.017
-    minNoise = 0.017
+    initValue = 0.05
     fan_in = 1
     lastVal = None
     for i in inputs.get_shape().as_list():
