@@ -32,8 +32,8 @@ for i in range(20):
 
         # hyperparameters
         valueMin=-400.0,
-        valueMax=100.0,
-        numAtoms=10,
+        valueMax=300.0,
+        numAtoms=14,
         maxMemoryLength=100000,
         batchSize=256,
         networkSize=[128, 128, 256],
