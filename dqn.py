@@ -28,7 +28,7 @@ for i in range(20):
         intermediateTests=True,
 
         render=False,
-        showGraph=True,
+        showGraph=False,
 
         # hyperparameters
         valueMin=-400.0,
