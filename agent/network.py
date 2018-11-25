@@ -18,7 +18,8 @@ class Network:
             numAtoms,
             valueMin,
             valueMax,
-            noisyLayers
+            noisyLayers,
+            maxGradientNorm
         ):
         self.name = name
         self.sess = sess
@@ -28,6 +29,7 @@ class Network:
         self.networkSize = networkSize
         self.learningRate = learningRate
         self.numAtoms = numAtoms
+        self.maxGradientNorm = maxGradientNorm
         self.support = tf.linspace(valueMin, valueMax, numAtoms)
         self.losses = []
         self.build()
@@ -64,7 +66,11 @@ class Network:
         self.targetDistributions = tf.placeholder(tf.float32, [None, self.numAtoms])
         self.loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.targetDistributions,logits=tf.clip_by_value(self.actionLogits, -1, 2))
         self.mean_loss = tf.reduce_mean(self.loss)
-        self.trainingOperation = tf.train.AdamOptimizer(self.learningRate).minimize(self.mean_loss)
+        # self.trainingOperation = tf.train.AdamOptimizer(self.learningRate).minimize(self.mean_loss)
+        self.optimizer = tf.train.AdamOptimizer(self.learningRate)
+        gradients, variables = zip(*self.optimizer.compute_gradients(self.mean_loss))
+        self.gradients, _ = tf.clip_by_global_norm(gradients, self.maxGradientNorm)
+        self.trainingOperation = self.optimizer.apply_gradients(zip(self.gradients, variables))
     def indexInto(self, ary, indexes):
         batchIndices = tf.range(tf.shape(indexes)[0])
         actionProbabilityIndices = tf.stack([tf.cast(batchIndices, tf.int64), tf.cast(indexes, tf.int64)], axis=1)

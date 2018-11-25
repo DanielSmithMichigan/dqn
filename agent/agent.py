@@ -50,12 +50,15 @@ class Agent:
             numTestsPerTestPeriod,
             episodesPerTest,
             intermediateTests,
-            rewardsMovingAverageSampleLength
+            rewardsMovingAverageSampleLength,
+            maxGradientNorm,
+            minExploration
         ):
         self.sess = sess
         self.env = env
         self.epsilonDecay = epsilonDecay
         self.epsilon = epsilonInitial
+        self.minExploration = minExploration
         self.networkSize = networkSize
         self.episodesPerTest = episodesPerTest
         self.numAvailableActions = numAvailableActions
@@ -87,7 +90,8 @@ class Agent:
             numAtoms=numAtoms,
             valueMin=valueMin,
             valueMax=valueMax,
-            noisyLayers=noisyLayers
+            noisyLayers=noisyLayers,
+            maxGradientNorm=maxGradientNorm
         )
         self.minFramesForTraining = minFramesForTraining
         self.support = self.sess.run(self.learnedNetwork.support)
@@ -245,6 +249,7 @@ class Agent:
         if useRandomActions:
             self.epsilon = self.epsilon * self.epsilonDecay
             epsilon = min(np.random.random() * self.epsilon, 1)
+            epsilon = max(epsilon, self.minExploration)
         self.epsilonOverTime.append(self.epsilon)
         state = self.env.reset()
         self.getAgentAssessment(state)
@@ -286,7 +291,6 @@ class Agent:
     def execute(self):
         self.sess.run(tf.global_variables_initializer())
         for testNum in range(self.numTestPeriods):
-            print("Test ",testNum)
             for episodeNum in range(self.episodesPerTest):
                 self.playEpisode(useRandomActions=True,recordTestResult=False)
                 if len(self.memoryBuffer.memory) > self.minFramesForTraining:
@@ -297,6 +301,6 @@ class Agent:
                 self.testResults = []
                 for test_num in range(self.numTestsPerTestPeriod):
                     self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
-                print("Result "+str(np.mean(self.testResults)))
+                print("Test "+str(testNum)+": "+str(np.mean(self.testResults)))
                 self.testOutput.append(np.mean(self.testResults))
         return self.testOutput

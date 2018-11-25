@@ -14,6 +14,8 @@ resultsF = np.loadtxt("./test-results/lr-3-20-atoms.txt",delimiter=",")
 resultsG = np.loadtxt("./test-results/lr-3-20-atoms-2.txt",delimiter=",")
 resultsH = np.loadtxt("./test-results/3x-128-2.txt",delimiter=",")
 resultsI = np.loadtxt("./test-results/lr-1-8-vmax200-12-atom.txt",delimiter=",")
+resultsJ = np.loadtxt("./test-results/post-optimization-updates.txt",delimiter=",")
+resultsK = np.loadtxt("./test-results/10x-run.txt",delimiter=",")
 for i in resultsA:
     rewardsGraph.plot(i, color='red', alpha=0.25)
 
@@ -39,7 +41,13 @@ for i in resultsH:
     rewardsGraph.plot(i, color='red', alpha=0.25)
 
 for i in resultsI:
+    rewardsGraph.plot(i, color='red', alpha=0.25)
+
+for i in resultsJ:
     rewardsGraph.plot(i, color='blue')
+
+# for i in [resultsK]:
+#     rewardsGraph.plot(i, color='blue')
 
 overview.canvas.draw()
 plt.pause(20)

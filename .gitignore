@@ -1,1 +1,3 @@
 gym
+__pycache__/
+agent/__pycache__/
