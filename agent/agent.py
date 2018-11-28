@@ -3,6 +3,7 @@ from .network import Network
 from .buffer import Buffer
 from . import constants
 from . import util
+from .prioritized_experience_replay import PrioritizedExperienceReplay
 import numpy as np
 import tensorflow as tf
 import random
@@ -52,13 +53,15 @@ class Agent:
             intermediateTests,
             rewardsMovingAverageSampleLength,
             maxGradientNorm,
-            minExploration
+            minExploration,
+            maxExploration
         ):
         self.sess = sess
         self.env = env
         self.epsilonDecay = epsilonDecay
         self.epsilon = epsilonInitial
         self.minExploration = minExploration
+        self.maxExploration = maxExploration
         self.networkSize = networkSize
         self.episodesPerTest = episodesPerTest
         self.numAvailableActions = numAvailableActions
@@ -71,14 +74,10 @@ class Agent:
         self.numTestsPerTestPeriod = numTestsPerTestPeriod
         self.showGraph = showGraph
         self.numTestsPerTestPeriod = numTestsPerTestPeriod
-        self.memoryBuffer = Buffer(
-            maxMemoryLength=maxMemoryLength,
-            nStepUpdate=nStepUpdate,
+        self.memoryBuffer = PrioritizedExperienceReplay(
+            numMemories=maxMemoryLength,
             priorityExponent=priorityExponent,
-            batchSize=batchSize,
-            gamma=gamma,
-            includeIntermediatePairs=includeIntermediatePairs,
-            sess=sess
+            batchSize=batchSize
         )
         self.learnedNetwork = Network(
             name="learned-network-"+str(np.random.randint(100000, 999999)),
@@ -139,18 +138,16 @@ class Agent:
         memoryEntry[constants.NEXT_STATE] = nextState
         memoryEntry[constants.GAMMA] = self.gamma if not done else 0
         memoryEntry[constants.IS_TERMINAL] = done
-        memoryEntry[constants.LOSS] = 1.0
-        memoryEntry[constants.PRIORITY_CACHE] = 1.0
         self.episodeMemories.append(memoryEntry)
         return nextState, done
     def train(self):
-        trainingEpisodes = self.memoryBuffer.getSampleBatch()
+        trainingEpisodes = self.memoryBuffer.getMemoryBatch()
         targets, predictions, actions = self.learnedNetwork.trainAgainst(trainingEpisodes, self.support)
         choice = np.random.randint(len(targets))
         self.recentTarget = targets[choice]
         self.recentPrediction = predictions[choice]
         self.recentAction = actions[choice]
-        self.memoryBuffer.updateLossPriorityCache(trainingEpisodes)
+        self.memoryBuffer.updateMemories(trainingEpisodes)
     def buildGraphs(self):
         self.overview = plt.figure()
         self.lastNRewardsGraph = self.overview.add_subplot(4, 1, 1)
@@ -247,9 +244,9 @@ class Agent:
     def playEpisode(self, useRandomActions, recordTestResult, testNum=0):
         epsilon = 0
         if useRandomActions:
-            self.epsilon = self.epsilon * self.epsilonDecay
+            self.epsilon = max(self.epsilon * self.epsilonDecay, self.minExploration)
             epsilon = min(np.random.random() * self.epsilon, 1)
-            epsilon = max(epsilon, self.minExploration)
+            epsilon = min(epsilon, self.maxExploration)
         self.epsilonOverTime.append(self.epsilon)
         state = self.env.reset()
         self.getAgentAssessment(state)
@@ -285,7 +282,7 @@ class Agent:
         for i in reversed(self.episodeMemories):
             cumulativeReward = cumulativeReward + i[constants.REWARD]
             i[constants.REWARD] = cumulativeReward
-            self.memoryBuffer.addMemory(i)
+            self.memoryBuffer.add(i)
         if (recordTestResult):
             self.testResults.append(self.totalEpisodeReward)
     def execute(self):
@@ -293,7 +290,7 @@ class Agent:
         for testNum in range(self.numTestPeriods):
             for episodeNum in range(self.episodesPerTest):
                 self.playEpisode(useRandomActions=True,recordTestResult=False)
-                if len(self.memoryBuffer.memory) > self.minFramesForTraining:
+                if self.memoryBuffer.length > self.minFramesForTraining:
                     self.train()
             if self.showGraph:
                 self.updateGraphs()

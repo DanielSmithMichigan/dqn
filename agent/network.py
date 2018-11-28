@@ -65,7 +65,9 @@ class Network:
     def buildTrainingOperation(self):
         self.targetDistributions = tf.placeholder(tf.float32, [None, self.numAtoms])
         self.loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=self.targetDistributions,logits=tf.clip_by_value(self.actionLogits, -1, 2))
-        self.mean_loss = tf.reduce_mean(self.loss)
+        self.lossPriority = tf.placeholder(tf.float32, [None,])
+        self.weightedLoss = self.loss / self.lossPriority
+        self.mean_loss = tf.reduce_mean(self.weightedLoss)
         # self.trainingOperation = tf.train.AdamOptimizer(self.learningRate).minimize(self.mean_loss)
         self.optimizer = tf.train.AdamOptimizer(self.learningRate)
         gradients, variables = zip(*self.optimizer.compute_gradients(self.mean_loss))
@@ -101,9 +103,9 @@ class Network:
                     lowestDistIndex = j
             targetDistribution[lowestDistIndex] = 1
             targetDistributions.append(targetDistribution)
-
         targets, predictions, loss, _ = self.sess.run([self.targetDistributions, self.actionLogits, self.loss, self.trainingOperation], feed_dict={
             self.environmentInput: util.getColumn(memoryUnits, constants.STATE),
+            self.lossPriority: util.getColumn(memoryUnits, constants.PRIORITY),
             self.actionInput: actions,
             self.targetDistributions: targetDistributions
         })

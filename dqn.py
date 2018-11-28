@@ -23,28 +23,29 @@ for i in range(20):
         # test parameters
         episodesPerTest=100,
         numTestPeriods=100,
-        numTestsPerTestPeriod=20,
+        numTestsPerTestPeriod=5,
         episodeStepLimit=1024,
         intermediateTests=True,
 
         render=False,
-        showGraph=False,
+        showGraph=True,
 
         # hyperparameters
         valueMin=-400.0,
-        valueMax=300.0,
-        numAtoms=14,
+        valueMax=100.0,
+        numAtoms=10,
         maxMemoryLength=100000,
         batchSize=256,
         networkSize=[128, 128, 256],
         learningRate=2e-4,
-        priorityExponent=0,
+        priorityExponent= .5,
         epsilonInitial = 2,
-        epsilonDecay = .9987,
-        minExploration = .15,
-        minFramesForTraining=2048,
-        maxGradientNorm=5,
-        noisyLayers=False
+        epsilonDecay = .9986,
+        minExploration = .05,
+        maxExploration = .5,
+        minFramesForTraining = 2048,
+        maxGradientNorm = 5,
+        noisyLayers = False
     )
     testResults = a.execute()
     if len(allResults) > 0:

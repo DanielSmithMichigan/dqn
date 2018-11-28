@@ -32,7 +32,7 @@ import sys
 #         for i in range(len(chosenAction)):
 #             assertEqual(chosenAction[i], bestAction)
 
-class TestNetwork(unittest.TestCase):
+# class TestNetwork(unittest.TestCase):
     # def testSupport(self):
     #     with tf.Session() as sess:
     #         n = Network(
@@ -189,58 +189,58 @@ class TestNetwork(unittest.TestCase):
     #             ]
     #         })
     #         self.assertEqual(loss[0] < 1e-3, True)
-    def testTrainTwoNetworks(self):
-        with tf.Session() as sess:
-            learnedNetwork = Network(
-                name="network-8",
-                sess=sess,
-                numObservations=1,
-                networkSize=[64,64,64],
-                numAvailableActions=1,
-                learningRate=1e-3,
-                numAtoms=51,
-                valueMin=-10.0,
-                valueMax=10.0
-            )
-            targetNetwork = Network(
-                name="network-9",
-                sess=sess,
-                numObservations=1,
-                networkSize=[64,64,64],
-                numAvailableActions=1,
-                learningRate=1e-3,
-                numAtoms=51,
-                valueMin=-10.0,
-                valueMax=10.0
-            )
-            targetNetwork.makeDuplicationOperation(learnedNetwork.networkParams)
-            learnedNetwork.makeDuplicationOperation(targetNetwork.networkParams)
-            sess.run(tf.global_variables_initializer())
-            sess.run(learnedNetwork.duplicateOtherNetwork)
-            batchSize = 32
-            trainingPerTargetUpdate = 256
-            targetUpdates = 12
-            for i in range(targetUpdates):
-                for j in range(trainingPerTargetUpdate):
-                    batch = []
-                    for k in range(batchSize):
-                        memory = np.zeros(constants.NUM_MEMORY_ENTRIES, dtype=object)
-                        memory[constants.ACTION] = 0
-                        memory[constants.STATE] = [np.random.random()]
-                        memory[constants.REWARD] = 1
-                        memory[constants.NEXT_STATE] = [np.random.random()]
-                        memory[constants.GAMMA] = 0
-                        memory[constants.IS_TERMINAL] = True
-                        batch.append(memory)
-                    targetProbabilities = targetNetwork.getTargetDistributions(batch)
-                    _, loss = sess.run([learnedNetwork.trainingOperation, learnedNetwork.loss], feed_dict={
-                        learnedNetwork.actionInput: util.getColumn(batch, constants.ACTION),
-                        learnedNetwork.targetProbabilities: targetProbabilities,
-                        learnedNetwork.environmentInput: util.getColumn(batch, constants.STATE)
-                    })
-                    print("LOSS: ",np.mean(loss))
-                sess.run(targetNetwork.duplicateOtherNetwork)
-                print("TARGET UPDATED")
+    # def testTrainTwoNetworks(self):
+    #     with tf.Session() as sess:
+    #         learnedNetwork = Network(
+    #             name="network-8",
+    #             sess=sess,
+    #             numObservations=1,
+    #             networkSize=[64,64,64],
+    #             numAvailableActions=1,
+    #             learningRate=1e-3,
+    #             numAtoms=51,
+    #             valueMin=-10.0,
+    #             valueMax=10.0
+    #         )
+    #         targetNetwork = Network(
+    #             name="network-9",
+    #             sess=sess,
+    #             numObservations=1,
+    #             networkSize=[64,64,64],
+    #             numAvailableActions=1,
+    #             learningRate=1e-3,
+    #             numAtoms=51,
+    #             valueMin=-10.0,
+    #             valueMax=10.0
+    #         )
+    #         targetNetwork.makeDuplicationOperation(learnedNetwork.networkParams)
+    #         learnedNetwork.makeDuplicationOperation(targetNetwork.networkParams)
+    #         sess.run(tf.global_variables_initializer())
+    #         sess.run(learnedNetwork.duplicateOtherNetwork)
+    #         batchSize = 32
+    #         trainingPerTargetUpdate = 256
+    #         targetUpdates = 12
+    #         for i in range(targetUpdates):
+    #             for j in range(trainingPerTargetUpdate):
+    #                 batch = []
+    #                 for k in range(batchSize):
+    #                     memory = np.zeros(constants.NUM_MEMORY_ENTRIES, dtype=object)
+    #                     memory[constants.ACTION] = 0
+    #                     memory[constants.STATE] = [np.random.random()]
+    #                     memory[constants.REWARD] = 1
+    #                     memory[constants.NEXT_STATE] = [np.random.random()]
+    #                     memory[constants.GAMMA] = 0
+    #                     memory[constants.IS_TERMINAL] = True
+    #                     batch.append(memory)
+    #                 targetProbabilities = targetNetwork.getTargetDistributions(batch)
+    #                 _, loss = sess.run([learnedNetwork.trainingOperation, learnedNetwork.loss], feed_dict={
+    #                     learnedNetwork.actionInput: util.getColumn(batch, constants.ACTION),
+    #                     learnedNetwork.targetProbabilities: targetProbabilities,
+    #                     learnedNetwork.environmentInput: util.getColumn(batch, constants.STATE)
+    #                 })
+    #                 print("LOSS: ",np.mean(loss))
+    #             sess.run(targetNetwork.duplicateOtherNetwork)
+    #             print("TARGET UPDATED")
             # self.assertEqual(loss[0] < 1e-3, True)
     # def testTrainIt(self):
     #     NUM_TRAINING_ITERATIONS = 100
