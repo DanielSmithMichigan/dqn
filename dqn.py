@@ -27,22 +27,22 @@ for i in range(20):
         episodeStepLimit=1024,
         intermediateTests=True,
 
-        render=False,
+        render=True,
         showGraph=True,
 
         # hyperparameters
         valueMin=-400.0,
         valueMax=100.0,
         numAtoms=10,
-        maxMemoryLength=100000,
+        maxMemoryLength=1000000,
         batchSize=256,
         networkSize=[128, 128, 256],
         learningRate=2e-4,
-        priorityExponent= .5,
+        priorityExponent= 0,
         epsilonInitial = 2,
-        epsilonDecay = .9986,
+        epsilonDecay = .99865,
         minExploration = .05,
-        maxExploration = .5,
+        maxExploration = .75,
         minFramesForTraining = 2048,
         maxGradientNorm = 5,
         noisyLayers = False
