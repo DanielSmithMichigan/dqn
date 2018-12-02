@@ -10,6 +10,7 @@ experimentName = "experiment"
 topN = 4
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
+learningRate = 2e-4
 a = Agent(
     sess=sess,
     env=env,
