@@ -22,7 +22,7 @@ a = Agent(
 
     # test parameters
     episodesPerTest=1,
-    numTestPeriods=1,
+    numTestPeriods=5,
     numTestsPerTestPeriod=5,
     episodeStepLimit=1024,
     intermediateTests=True,
