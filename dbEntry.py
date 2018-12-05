@@ -24,7 +24,7 @@ a = Agent(
     episodesPerTest=1,
     numTestPeriods=40000,
     numTestsPerTestPeriod=30,
-    maxRunningMinutes=20,
+    maxRunningMinutes=10,
     episodeStepLimit=1024,
     intermediateTests=False,
 

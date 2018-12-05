@@ -292,7 +292,7 @@ class Agent:
         self.testResults = []
         for test_num in range(self.numTestsPerTestPeriod):
             self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
-        print("Test "+str(testNum)+": "+str(np.mean(self.testResults)))
+        print("Test "+str(len(self.testResults))+": "+str(np.mean(self.testResults)))
         self.testOutput.append(np.mean(self.testResults))
     def outOfTime(self):
         return time.time() > self.startTime + (self.maxRunningMinutes * 60)
@@ -308,7 +308,7 @@ class Agent:
             if self.showGraph:
                 self.updateGraphs()
             if self.intermediateTests:
-                self.executeTestPeriod()
+                self.executeTestPeriod(testNum)
             if self.outOfTime():
                 break
         self.executeTestPeriod()
