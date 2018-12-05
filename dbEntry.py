@@ -48,8 +48,7 @@ a = Agent(
     maxGradientNorm = 5,
     noisyLayers = False
 )
-testResults = np.array(a.execute())
-performance = [0]
+performance = a.execute()[0]
 cur = db.cursor()
 cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, prioritization, 0, 0, 0, performance))
 db.commit()
