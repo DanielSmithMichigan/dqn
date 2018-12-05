@@ -6,8 +6,7 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "prioritizationTest"
-topN = 4
+experimentName = "prioritization"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 prioritization = np.random.random()
@@ -22,11 +21,12 @@ a = Agent(
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=100,
-    numTestPeriods=40,
-    numTestsPerTestPeriod=10,
+    episodesPerTest=1,
+    numTestPeriods=40000,
+    numTestsPerTestPeriod=30,
+    maxRunningMinutes=20,
     episodeStepLimit=1024,
-    intermediateTests=True,
+    intermediateTests=False,
 
     render=False,
     showGraph=False,
@@ -39,7 +39,7 @@ a = Agent(
     batchSize=256,
     networkSize=[128, 128, 256],
     learningRate=2e-4,
-    priorityExponent= prioritization,
+    priorityExponent=prioritization,
     epsilonInitial = 2,
     epsilonDecay = .9986,
     minExploration = .05,
@@ -49,7 +49,7 @@ a = Agent(
     noisyLayers = False
 )
 testResults = np.array(a.execute())
-performance = np.mean(testResults[np.argpartition(-testResults,range(topN))[:topN]])
+performance = [0]
 cur = db.cursor()
 cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, prioritization, 0, 0, 0, performance))
 db.commit()

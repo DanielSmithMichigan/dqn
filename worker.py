@@ -29,13 +29,14 @@ def objective(args):
             gamma=1,
             nStepUpdate=1,
             includeIntermediatePairs=False,
+            maxRunningMinutes=30,
 
             # test parameters
-            episodesPerTest=100,
-            numTestPeriods=15,
-            numTestsPerTestPeriod=12,
+            episodesPerTest=1,
+            numTestPeriods=40000,
+            numTestsPerTestPeriod=30,
             episodeStepLimit=1024,
-            intermediateTests=True,
+            intermediateTests=False,
 
             render=False,
             showGraph=False,

@@ -54,8 +54,10 @@ class Agent:
             rewardsMovingAverageSampleLength,
             maxGradientNorm,
             minExploration,
-            maxExploration
+            maxExploration,
+            maxRunningMinutes
         ):
+        self.startTime = time.time()
         self.sess = sess
         self.env = env
         self.epsilonDecay = epsilonDecay
@@ -65,6 +67,7 @@ class Agent:
         self.networkSize = networkSize
         self.episodesPerTest = episodesPerTest
         self.numAvailableActions = numAvailableActions
+        self.maxRunningMinutes = maxRunningMinutes
         self.gamma = gamma
         self.episodeStepLimit = episodeStepLimit
         self.totalEpisodeReward = 0
@@ -285,6 +288,14 @@ class Agent:
             self.memoryBuffer.add(i)
         if (recordTestResult):
             self.testResults.append(self.totalEpisodeReward)
+    def executeTestPeriod(self):
+        self.testResults = []
+        for test_num in range(self.numTestsPerTestPeriod):
+            self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
+        print("Test "+str(testNum)+": "+str(np.mean(self.testResults)))
+        self.testOutput.append(np.mean(self.testResults))
+    def outOfTime(self):
+        return time.time() > self.startTime + (self.maxRunningMinutes * 60)
     def execute(self):
         self.sess.run(tf.global_variables_initializer())
         for testNum in range(self.numTestPeriods):
@@ -292,12 +303,13 @@ class Agent:
                 self.playEpisode(useRandomActions=True,recordTestResult=False)
                 if self.memoryBuffer.length > self.minFramesForTraining:
                     self.train()
+                if self.outOfTime():
+                    break
             if self.showGraph:
                 self.updateGraphs()
             if self.intermediateTests:
-                self.testResults = []
-                for test_num in range(self.numTestsPerTestPeriod):
-                    self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
-                print("Test "+str(testNum)+": "+str(np.mean(self.testResults)))
-                self.testOutput.append(np.mean(self.testResults))
+                self.executeTestPeriod()
+            if self.outOfTime():
+                break
+        self.executeTestPeriod()
         return self.testOutput

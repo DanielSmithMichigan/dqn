@@ -7,7 +7,7 @@ env = gym.make('LunarLander-v2')
 
 allResults = []
 
-for i in range(20):
+for i in range(1):
     print("BEGINNING")
     sess = tf.Session()
     a = Agent(
@@ -21,13 +21,14 @@ for i in range(20):
         includeIntermediatePairs=False,
 
         # test parameters
-        episodesPerTest=100,
-        numTestPeriods=100,
-        numTestsPerTestPeriod=5,
+        episodesPerTest=1,
+        numTestPeriods=40000,
+        numTestsPerTestPeriod=30,
+        maxRunningMinutes=30,
         episodeStepLimit=1024,
-        intermediateTests=True,
+        intermediateTests=False,
 
-        render=True,
+        render=False,
         showGraph=True,
 
         # hyperparameters
