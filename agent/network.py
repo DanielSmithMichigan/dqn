@@ -13,6 +13,8 @@ class Network:
             sess,
             numObservations,
             networkSize,
+            advantageNetworkSize,
+            valueNetworkSize,
             numAvailableActions,
             learningRate,
             noisyLayers,
@@ -25,6 +27,8 @@ class Network:
         self.numAvailableActions = numAvailableActions
         self.numObservations = numObservations
         self.networkSize = networkSize
+        self.valueNetworkSize = valueNetworkSize
+        self.advantageNetworkSize = advantageNetworkSize
         self.learningRate = learningRate
         self.maxGradientNorm = maxGradientNorm
         self.batchSize = batchSize
@@ -37,8 +41,17 @@ class Network:
             prevLayer = self.environmentInput
             for i in range(len(self.networkSize)):
                 prevLayer = tf.layers.dense(inputs=prevLayer, units=self.networkSize[i], activation=tf.nn.leaky_relu, kernel_initializer=weights_initializer, name="hidden_"+str(i))
-            self.qValues = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions, kernel_initializer=weights_initializer, name="logits")
-            self.qValues = tf.reshape(self.qValues, [-1, self.numAvailableActions])
+            prevLayerAdvantage = prevLayer
+            prevLayerValue = prevLayer
+            for i in range(len(self.advantageNetworkSize)):
+                prevLayerAdvantage = tf.layers.dense(inputs=prevLayerAdvantage, units=self.advantageNetworkSize[i], activation=tf.nn.leaky_relu, kernel_initializer=weights_initializer, name="advantage_"+str(i))
+            self.advantage = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions, kernel_initializer=weights_initializer, name="advantage-logits")
+            self.advantage = tf.reshape(self.advantage, [-1, self.numAvailableActions])
+            for i in range(len(self.valueNetworkSize)):
+                prevLayerValue = tf.layers.dense(inputs=prevLayerValue, units=self.valueNetworkSize[i], activation=tf.nn.leaky_relu, kernel_initializer=weights_initializer, name="value_"+str(i))
+            self.value = tf.layers.dense(inputs=prevLayer, units=1, kernel_initializer=weights_initializer, name="value-logits")
+            self.averageAdvantage = tf.reduce_mean(self.advantage)
+            self.qValues = self.value + (self.advantage - self.averageAdvantage)
             self.buildActionProbabilityHead()
             self.buildMaxQHead()
             self.buildTrainingOperation()

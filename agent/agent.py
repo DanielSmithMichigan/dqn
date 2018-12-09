@@ -33,6 +33,8 @@ class Agent:
             numAvailableActions,
             numObservations,
             networkSize,
+            advantageNetworkSize,
+            valueNetworkSize,
             learningRate,
             episodeStepLimit,
             nStepUpdate,
@@ -83,6 +85,8 @@ class Agent:
             sess=sess,
             numObservations=numObservations,
             networkSize=networkSize,
+            advantageNetworkSize=advantageNetworkSize,
+            valueNetworkSize=valueNetworkSize,
             numAvailableActions=numAvailableActions,
             learningRate=learningRate,
             noisyLayers=noisyLayers,
@@ -107,7 +111,6 @@ class Agent:
         self.agentAssessmentsOverTime = []
         self.epsilonOverTime = []
         self.choicesOverTime = []
-
     def getAgentAssessment(self, state):
         qValues, maxQ = self.sess.run([
             self.learnedNetwork.qValues,

@@ -34,8 +34,10 @@ for i in range(1):
         # hyperparameters
         maxMemoryLength=int(1e6),
         batchSize=256,
-        networkSize=[128, 128, 512],
-        learningRate=7e-4,
+        networkSize=[128, 128],
+        advantageNetworkSize=[512],
+        valueNetworkSize=[512],
+        learningRate=1e-3,
         priorityExponent= 0,
         epsilonInitial = 2,
         epsilonDecay = .9995,

@@ -10,7 +10,7 @@ experimentName = "dqn-learning-rate"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 batchSize=256
-learningRate = np.random.uniform(low=1e-5, high=1e-3)
+learningRate = np.random.uniform(low=1e-4, high=1e-2)
 a = Agent(
     sess=sess,
     env=env,
@@ -22,33 +22,35 @@ a = Agent(
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=40000,
-    numTestPeriods=1,
-    numTestsPerTestPeriod=30,
-    maxRunningMinutes=10,
+    episodesPerTest=100,
+    numTestPeriods=100,
+    numTestsPerTestPeriod=15,
+    maxRunningMinutes=90,
     episodeStepLimit=1024,
     intermediateTests=False,
 
     render=False,
-    showGraph=False,
+    showGraph=True,
 
     # hyperparameters
     maxMemoryLength=int(1e6),
-    batchSize=batchSize,
-    networkSize=[128, 128, 512],
+    batchSize=256,
+    networkSize=[128, 128],
+    advantageNetworkSize=[512],
+    valueNetworkSize=[512],
     learningRate=learningRate,
     priorityExponent= 0,
     epsilonInitial = 2,
-    epsilonDecay = .9986,
+    epsilonDecay = .9995,
     minExploration = .05,
-    maxExploration = .75,
+    maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
     noisyLayers = False
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, prioritization, 0, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, learningRate, 0, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()
