@@ -33,7 +33,7 @@ a = Agent(
     showGraph=False,
 
     # hyperparameters
-    maxMemoryLength=int(10e5),
+    maxMemoryLength=int(1e6),
     batchSize=batchSize,
     networkSize=[128, 128, 512],
     learningRate=learningRate,
