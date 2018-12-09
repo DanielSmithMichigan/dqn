@@ -22,10 +22,10 @@ a = Agent(
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=100,
-    numTestPeriods=100,
-    numTestsPerTestPeriod=15,
-    maxRunningMinutes=90,
+    episodesPerTest=40000,
+    numTestPeriods=1,
+    numTestsPerTestPeriod=30,
+    maxRunningMinutes=15,
     episodeStepLimit=1024,
     intermediateTests=False,
 
