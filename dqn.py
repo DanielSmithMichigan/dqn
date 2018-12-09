@@ -26,7 +26,7 @@ for i in range(1):
         numTestsPerTestPeriod=15,
         maxRunningMinutes=90,
         episodeStepLimit=1024,
-        intermediateTests=True,
+        intermediateTests=False,
 
         render=False,
         showGraph=True,
