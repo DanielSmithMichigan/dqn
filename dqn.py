@@ -32,7 +32,7 @@ for i in range(1):
         showGraph=True,
 
         # hyperparameters
-        maxMemoryLength=int(10e6),
+        maxMemoryLength=int(1e6),
         batchSize=256,
         networkSize=[128, 128, 512],
         learningRate=7e-4,
