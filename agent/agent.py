@@ -39,9 +39,6 @@ class Agent:
             priorityExponent,
             minFramesForTraining,
             includeIntermediatePairs,
-            numAtoms,
-            valueMin,
-            valueMax,
             render,
             showGraph,
             epsilonInitial,
@@ -71,7 +68,6 @@ class Agent:
         self.gamma = gamma
         self.episodeStepLimit = episodeStepLimit
         self.totalEpisodeReward = 0
-        self.numAtoms = numAtoms
         self.render = render
         self.numTestPeriods = numTestPeriods
         self.numTestsPerTestPeriod = numTestsPerTestPeriod
@@ -89,26 +85,22 @@ class Agent:
             networkSize=networkSize,
             numAvailableActions=numAvailableActions,
             learningRate=learningRate,
-            numAtoms=numAtoms,
-            valueMin=valueMin,
-            valueMax=valueMax,
             noisyLayers=noisyLayers,
-            maxGradientNorm=maxGradientNorm
+            maxGradientNorm=maxGradientNorm,
+            batchSize=batchSize
         )
         self.minFramesForTraining = minFramesForTraining
-        self.support = self.sess.run(self.learnedNetwork.support)
-        self.barWidth = self.support[1] - self.support[0]
         self.intermediateTests = intermediateTests
         self.testOutput = []
         self.rewardsMovingAverageSampleLength = rewardsMovingAverageSampleLength
         if showGraph:
             self.buildGraphs()
         #Build placeholder graph values
-        self.targetExample = np.zeros(self.numAtoms)
-        self.actualExample = np.zeros(self.numAtoms)
+        self.targetExample = 0
+        self.actualExample = 0
         self.actionExample = 0
-        self.recentTarget = np.zeros(self.numAtoms)
-        self.recentPrediction = np.zeros(self.numAtoms)
+        self.recentTarget = 0
+        self.recentPrediction = 0
         self.rewardsMovingAverage = []
         self.rewardsReceivedOverTime = []
         self.rewardsStdDev = []
@@ -117,14 +109,14 @@ class Agent:
         self.choicesOverTime = []
 
     def getAgentAssessment(self, state):
-        probabilities, maxQ = self.sess.run([
-            self.learnedNetwork.probabilities,
+        qValues, maxQ = self.sess.run([
+            self.learnedNetwork.qValues,
             self.learnedNetwork.maxQ
         ], feed_dict={
             self.learnedNetwork.environmentInput: [state]
         })
         self.agentAssessmentsOverTime.append(maxQ[0])
-        self.recentAgentProbabilities = probabilities[0]
+        self.recentAgentQValues = qValues[0]
     def getAction(self, state):
         action = self.sess.run(self.learnedNetwork.chosenAction, {
             self.learnedNetwork.environmentInput: [state]
@@ -145,7 +137,7 @@ class Agent:
         return nextState, done
     def train(self):
         trainingEpisodes = self.memoryBuffer.getMemoryBatch()
-        targets, predictions, actions = self.learnedNetwork.trainAgainst(trainingEpisodes, self.support)
+        targets, predictions, actions = self.learnedNetwork.trainAgainst(trainingEpisodes)
         choice = np.random.randint(len(targets))
         self.recentTarget = targets[choice]
         self.recentPrediction = predictions[choice]
@@ -173,32 +165,14 @@ class Agent:
 
         self.choicesOverTimeGraph = self.overview.add_subplot(4, 1, 4)
 
-        self.probabilityDistributions = plt.figure()
+        self.qValuesFigure = plt.figure()
 
-        self.recentTargetGraph = self.probabilityDistributions.add_subplot(6, 1, 1)
-        self.recentTargetGraph.set_ylabel('Probability')
-        self.recentTargetGraph.set_title("Prediction")
+        self.recentTrainingExampleGraph = self.qValuesFigure.add_subplot(2, 1, 1)
 
-        self.recentPredictionGraph = self.probabilityDistributions.add_subplot(6, 1, 2)
-        self.recentPredictionGraph.set_ylabel('Probability')
-        self.recentPredictionGraph.set_xlabel('Value')
-        self.recentPredictionGraph.set_title("Prediction")
-
-        self.agentAssessmentGraphs = []
-        self.recentAgentProbabilities = np.zeros((self.numAvailableActions, self.numAtoms))
-        for i in range(self.numAvailableActions):
-            self.agentAssessmentGraphs.append(self.probabilityDistributions.add_subplot(6, 1, 3 + i))
-
-        # self.denseWeights = plt.figure()
-        # self.denseWeightSubplots = []
-        # numWeightsGraphs = len(self.networkSize) + 1
-        # self.weightVariables = []
-        # with tf.variable_scope("learned-network", reuse=True):
-        #     for i in range(len(self.networkSize)):
-        #         self.denseWeightSubplots.append(self.denseWeights.add_subplot(numWeightsGraphs, 1, i + 1))
-        #         self.weightVariables.append(tf.get_variable("hidden_"+str(i)+"/kernel"))
-        #     self.denseWeightSubplots.append(self.denseWeights.add_subplot(numWeightsGraphs, 1, len(self.networkSize) + 1))
-        #     self.weightVariables.append(tf.get_variable("logits/kernel"))
+        self.qValueExample = self.qValuesFigure.add_subplot(2, 1, 2)
+        self.qValueExample.set_ylabel('Probability')
+        self.qValueExample.set_xlabel('Value')
+        self.qValueExample.set_title("Prediction")
 
         self.recentAction = 0
     def updateGraphs(self):
@@ -222,26 +196,14 @@ class Agent:
         self.choicesOverTimeGraph.legend(loc=2)
         self.overview.canvas.draw()
 
-        self.recentTargetGraph.cla()
-        self.recentTargetGraph.bar(self.support, self.recentTarget, width=self.barWidth)
-        self.recentTargetGraph.set_ylabel("Target")
-        self.recentTargetGraph.set_ylim(0, 1)
-        self.recentTargetGraph.set_title(constants.ACTION_NAMES[self.recentAction])
-        self.recentPredictionGraph.cla()
-        self.recentPredictionGraph.bar(self.support, self.recentPrediction, width=self.barWidth)
-        self.recentPredictionGraph.set_ylabel("Prediction")
-        self.recentPredictionGraph.set_ylim(0, 1)
-        for i in range(self.numAvailableActions):
-            self.agentAssessmentGraphs[i].cla()
-            self.agentAssessmentGraphs[i].bar(self.support, self.recentAgentProbabilities[i], width=self.barWidth)
-            self.agentAssessmentGraphs[i].set_title(constants.ACTION_NAMES[i])
-            self.agentAssessmentGraphs[i].set_ylim(0, 1)
-        self.probabilityDistributions.canvas.draw()
-
-        # for i in range(len(self.weightVariables)):
-        #     self.denseWeightSubplots[i].cla()
-        #     self.denseWeightSubplots[i].imshow(self.sess.run(self.weightVariables[i]))
-        # self.denseWeights.canvas.draw()
+        self.recentTrainingExampleGraph.cla()
+        self.recentTrainingExampleGraph.bar(["Target", "Prediction"], [self.recentTarget, self.recentPrediction])
+        self.recentTrainingExampleGraph.set_ylabel("Q Value")
+        self.recentTrainingExampleGraph.set_title(constants.ACTION_NAMES[self.recentAction])
+        self.qValueExample.cla()
+        self.qValueExample.bar(constants.ACTION_NAMES, self.recentAgentQValues)
+        self.qValueExample.set_ylabel("Q Value")
+        self.qValuesFigure.canvas.draw()
 
         plt.pause(0.00001)
     def playEpisode(self, useRandomActions, recordTestResult, testNum=0):
@@ -308,7 +270,7 @@ class Agent:
             if self.showGraph:
                 self.updateGraphs()
             if self.intermediateTests:
-                self.executeTestPeriod(testNum)
+                self.executeTestPeriod()
             if self.outOfTime():
                 break
         self.executeTestPeriod()

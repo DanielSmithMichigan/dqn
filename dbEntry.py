@@ -6,10 +6,11 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "prioritization"
+experimentName = "standard-dqn-learning-rate"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-prioritization = np.random.random()
+batchSize=256
+learningRate = np.random.uniform(low=1e-5, high=1e-3)
 a = Agent(
     sess=sess,
     env=env,
@@ -21,29 +22,26 @@ a = Agent(
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=1,
-    numTestPeriods=40000,
+    episodesPerTest=40000,
+    numTestPeriods=1,
     numTestsPerTestPeriod=30,
-    maxRunningMinutes=45,
+    maxRunningMinutes=1,
     episodeStepLimit=1024,
     intermediateTests=False,
 
     render=False,
-    showGraph=False,
+    showGraph=True,
 
     # hyperparameters
-    valueMin=-400.0,
-    valueMax=100.0,
-    numAtoms=10,
-    maxMemoryLength=100000,
-    batchSize=256,
-    networkSize=[128, 128, 256],
-    learningRate=2e-4,
-    priorityExponent=prioritization,
+    maxMemoryLength=int(10e6),
+    batchSize=batchSize,
+    networkSize=[128, 128, 512],
+    learningRate=learningRate,
+    priorityExponent= 0,
     epsilonInitial = 2,
-    epsilonDecay = .9986,
+    epsilonDecay = .9995,
     minExploration = .05,
-    maxExploration = .5,
+    maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
     noisyLayers = False
