@@ -30,7 +30,7 @@ a = Agent(
     intermediateTests=False,
 
     render=False,
-    showGraph=True,
+    showGraph=False,
 
     # hyperparameters
     maxMemoryLength=int(1e6),
