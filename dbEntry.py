@@ -6,11 +6,11 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "dqn-learning-rate"
+experimentName = "dueling-dqn-prioritization"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 batchSize=256
-learningRate = np.random.uniform(low=1e-4, high=1e-2)
+prioritization = np.random.uniform(low=0, high=1)
 a = Agent(
     sess=sess,
     env=env,
@@ -38,8 +38,8 @@ a = Agent(
     networkSize=[128, 128],
     advantageNetworkSize=[512],
     valueNetworkSize=[512],
-    learningRate=learningRate,
-    priorityExponent= 0,
+    learningRate=0.00625851,
+    priorityExponent= prioritization,
     epsilonInitial = 2,
     epsilonDecay = .9995,
     minExploration = .05,
@@ -50,7 +50,7 @@ a = Agent(
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, learningRate, 0, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, prioritization, 0, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()
