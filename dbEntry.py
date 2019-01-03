@@ -10,7 +10,7 @@ experimentName = "iqn-learning-rate"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 batchSize=256
-learningRate = np.random.uniform(low=.00001, high=.001)
+learningRate = np.random.uniform(low=1e-5, high=1e-2)
 a = Agent(
     sess=sess,
     env=env,
