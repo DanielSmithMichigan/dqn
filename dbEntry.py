@@ -6,7 +6,7 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "dueling-dqn-prioritization"
+experimentName = "iqn-learning-rate"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 batchSize=256
@@ -25,7 +25,7 @@ a = Agent(
     episodesPerTest=10000,
     numTestPeriods=100,
     numTestsPerTestPeriod=20,
-    maxRunningMinutes=.5,
+    maxRunningMinutes=20,
     episodeStepLimit=1024,
     intermediateTests=False,
 
