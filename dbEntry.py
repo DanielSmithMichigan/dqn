@@ -10,22 +10,22 @@ experimentName = "dueling-dqn-prioritization"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 batchSize=256
-prioritization = np.random.uniform(low=0, high=1)
+learningRate = np.random.uniform(low=.00001, high=.001)
 a = Agent(
     sess=sess,
     env=env,
     numAvailableActions=4,
     numObservations=8,
-    rewardsMovingAverageSampleLength=20,
+    rewardsMovingAverageSampleLength=200,
     gamma=1,
     nStepUpdate=1,
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=40000,
-    numTestPeriods=1,
-    numTestsPerTestPeriod=30,
-    maxRunningMinutes=25,
+    episodesPerTest=10000,
+    numTestPeriods=100,
+    numTestsPerTestPeriod=20,
+    maxRunningMinutes=.5,
     episodeStepLimit=1024,
     intermediateTests=False,
 
@@ -35,22 +35,24 @@ a = Agent(
     # hyperparameters
     maxMemoryLength=int(1e6),
     batchSize=256,
-    networkSize=[128, 128],
-    advantageNetworkSize=[512],
-    valueNetworkSize=[512],
-    learningRate=0.00625851,
-    priorityExponent= prioritization,
+    learningRate=learningRate,
+    priorityExponent= 0,
     epsilonInitial = 2,
-    epsilonDecay = .9995,
-    minExploration = .05,
+    epsilonDecay = .9985,
+    minExploration = .01,
     maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
-    noisyLayers = False
+    preNetworkSize = [256, 256],
+    postNetworkSize = [512],
+    numQuantiles = 32,
+    embeddingDimension = 64,
+    kappa = 1.0,
+    trainingIterations = 3
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, prioritization, 0, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, learningRate, 0, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()

@@ -32,9 +32,6 @@ class Agent:
             batchSize,
             numAvailableActions,
             numObservations,
-            networkSize,
-            advantageNetworkSize,
-            valueNetworkSize,
             learningRate,
             episodeStepLimit,
             nStepUpdate,
@@ -45,7 +42,6 @@ class Agent:
             showGraph,
             epsilonInitial,
             epsilonDecay,
-            noisyLayers,
             numTestPeriods,
             numTestsPerTestPeriod,
             episodesPerTest,
@@ -54,16 +50,24 @@ class Agent:
             maxGradientNorm,
             minExploration,
             maxExploration,
-            maxRunningMinutes
+            maxRunningMinutes,
+            preNetworkSize,
+            postNetworkSize,
+            numQuantiles,
+            embeddingDimension,
+            kappa,
+            trainingIterations
         ):
         self.startTime = time.time()
         self.sess = sess
         self.env = env
+        self.batchSize = batchSize
+        self.numQuantiles = numQuantiles
+        self.trainingIterations = trainingIterations
         self.epsilonDecay = epsilonDecay
         self.epsilon = epsilonInitial
         self.minExploration = minExploration
         self.maxExploration = maxExploration
-        self.networkSize = networkSize
         self.episodesPerTest = episodesPerTest
         self.numAvailableActions = numAvailableActions
         self.maxRunningMinutes = maxRunningMinutes
@@ -84,14 +88,15 @@ class Agent:
             name="learned-network-"+str(np.random.randint(100000, 999999)),
             sess=sess,
             numObservations=numObservations,
-            networkSize=networkSize,
-            advantageNetworkSize=advantageNetworkSize,
-            valueNetworkSize=valueNetworkSize,
             numAvailableActions=numAvailableActions,
             learningRate=learningRate,
-            noisyLayers=noisyLayers,
             maxGradientNorm=maxGradientNorm,
-            batchSize=batchSize
+            batchSize=batchSize,
+            preNetworkSize=preNetworkSize,
+            postNetworkSize=postNetworkSize,
+            numQuantiles=numQuantiles,
+            embeddingDimension=embeddingDimension,
+            kappa=kappa
         )
         self.minFramesForTraining = minFramesForTraining
         self.intermediateTests = intermediateTests
@@ -116,13 +121,15 @@ class Agent:
             self.learnedNetwork.qValues,
             self.learnedNetwork.maxQ
         ], feed_dict={
-            self.learnedNetwork.environmentInput: [state]
+            self.learnedNetwork.environmentInput: [state],
+            self.learnedNetwork.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(1, self.numQuantiles))
         })
         self.agentAssessmentsOverTime.append(maxQ[0])
         self.recentAgentQValues = qValues[0]
     def getAction(self, state):
         action = self.sess.run(self.learnedNetwork.chosenAction, {
-            self.learnedNetwork.environmentInput: [state]
+            self.learnedNetwork.environmentInput: [state],
+            self.learnedNetwork.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(1, self.numQuantiles))
         })[0]
         # self.chosenActions[action] = self.chosenActions[action] + 1
         return action
@@ -180,8 +187,8 @@ class Agent:
         self.recentAction = 0
     def updateGraphs(self):
         self.lastNRewardsGraph.cla()
-        self.lastNRewardsGraph.plot(self.rewardsReceivedOverTime[-self.numTestsPerTestPeriod:], label="Reward")
-        self.lastNRewardsGraph.plot(self.rewardsMovingAverage[-self.numTestsPerTestPeriod:], label="Moving average 20")
+        self.lastNRewardsGraph.plot(self.rewardsReceivedOverTime[-self.rewardsMovingAverageSampleLength:], label="Reward")
+        self.lastNRewardsGraph.plot(self.rewardsMovingAverage[-self.rewardsMovingAverageSampleLength:], label="Moving average")
         self.rewardsReceivedOverTimeGraph.cla()
         self.rewardsReceivedOverTimeGraph.plot(self.rewardsReceivedOverTime)
         self.lossesGraph.cla()
@@ -212,8 +219,9 @@ class Agent:
     def playEpisode(self, useRandomActions, recordTestResult, testNum=0):
         epsilon = 0
         if useRandomActions:
-            self.epsilon = max(self.epsilon * self.epsilonDecay, self.minExploration)
+            self.epsilon = self.epsilon * self.epsilonDecay
             epsilon = min(np.random.random() * self.epsilon, 1)
+            epsilon = max(epsilon, self.minExploration)
             epsilon = min(epsilon, self.maxExploration)
         self.epsilonOverTime.append(self.epsilon)
         state = self.env.reset()
@@ -237,6 +245,7 @@ class Agent:
             if done:
                 break
         self.rewardsReceivedOverTime.append(self.totalEpisodeReward)
+        print("Episode ",len(self.rewardsReceivedOverTime),": ",np.mean(self.rewardsReceivedOverTime[-self.rewardsMovingAverageSampleLength:]))
         periodResults = self.rewardsReceivedOverTime[-self.numTestsPerTestPeriod:]
         mu = np.mean(periodResults)
         std = np.std(periodResults)
@@ -254,11 +263,12 @@ class Agent:
         if (recordTestResult):
             self.testResults.append(self.totalEpisodeReward)
     def executeTestPeriod(self):
-        self.testResults = []
-        for test_num in range(self.numTestsPerTestPeriod):
-            self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
-        print("Test "+str(len(self.testResults))+": "+str(np.mean(self.testResults)))
-        self.testOutput.append(np.mean(self.testResults))
+        if (self.numTestsPerTestPeriod > 0):
+            self.testResults = []
+            for test_num in range(self.numTestsPerTestPeriod):
+                self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
+            print("Test "+str(len(self.testResults))+": "+str(np.mean(self.testResults)))
+            self.testOutput.append(np.mean(self.testResults))
     def outOfTime(self):
         return time.time() > self.startTime + (self.maxRunningMinutes * 60)
     def execute(self):
@@ -267,7 +277,8 @@ class Agent:
             for episodeNum in range(self.episodesPerTest):
                 self.playEpisode(useRandomActions=True,recordTestResult=False)
                 if self.memoryBuffer.length > self.minFramesForTraining:
-                    self.train()
+                    for trainingIteration in range(self.trainingIterations):
+                        self.train()
                 if self.outOfTime():
                     break
             if self.showGraph:

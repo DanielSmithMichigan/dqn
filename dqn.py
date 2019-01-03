@@ -15,37 +15,39 @@ for i in range(1):
         env=env,
         numAvailableActions=4,
         numObservations=8,
-        rewardsMovingAverageSampleLength=20,
+        rewardsMovingAverageSampleLength=200,
         gamma=1,
         nStepUpdate=1,
         includeIntermediatePairs=False,
 
         # test parameters
-        episodesPerTest=100,
-        numTestPeriods=100,
-        numTestsPerTestPeriod=15,
-        maxRunningMinutes=90,
+        episodesPerTest=25,
+        numTestPeriods=10000,
+        numTestsPerTestPeriod=0,
+        maxRunningMinutes=360,
         episodeStepLimit=1024,
         intermediateTests=False,
 
-        render=False,
+        render=True,
         showGraph=True,
 
         # hyperparameters
         maxMemoryLength=int(1e6),
         batchSize=256,
-        networkSize=[128, 128],
-        advantageNetworkSize=[512],
-        valueNetworkSize=[512],
-        learningRate=1e-3,
+        learningRate=0.0006,
         priorityExponent= 0,
         epsilonInitial = 2,
-        epsilonDecay = .9995,
-        minExploration = .05,
+        epsilonDecay = .9985,
+        minExploration = .01,
         maxExploration = .85,
         minFramesForTraining = 2048,
         maxGradientNorm = 5,
-        noisyLayers = False
+        preNetworkSize = [256, 256],
+        postNetworkSize = [512],
+        numQuantiles = 32,
+        embeddingDimension = 64,
+        kappa = 1.0,
+        trainingIterations = 3
     )
     testResults = a.execute()
     if len(allResults) > 0:

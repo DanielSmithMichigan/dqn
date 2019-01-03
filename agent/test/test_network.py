@@ -32,23 +32,108 @@ import sys
 #         for i in range(len(chosenAction)):
 #             assertEqual(chosenAction[i], bestAction)
 
-# class TestNetwork(unittest.TestCase):
-    # def testSupport(self):
-    #     with tf.Session() as sess:
-    #         n = Network(
-    #             name="network-1",
-    #             sess=sess,
-    #             numObservations=1,
-    #             networkSize=[16],
-    #             numAvailableActions=1,
-    #             learningRate=1e-5,
-    #             numAtoms=3,
-    #             valueMin=0.0,
-    #             valueMax=6.0
-    #         )
-    #         sess.run(tf.global_variables_initializer())
-    #         support = sess.run(n.support)
-    #         np.testing.assert_equal(support, [0,3,6])
+class TestNetwork(unittest.TestCase):
+    def testQuantilesShape(self):
+        with tf.Session() as sess:
+            n = Network(
+                name="test-network-1",
+                sess=sess,
+                numObservations=1,
+                numAvailableActions=2,
+                preNetworkSize=[6],
+                postNetworkSize=[7],
+                numQuantiles=8,
+                embeddingDimension=9,
+                learningRate=1e-5,
+                maxGradientNorm=5,
+                batchSize=64,
+                kappa=1.1
+            )
+            sess.run(tf.global_variables_initializer())
+            (
+                quantilesEmbeddingBox,
+                cosineTimestep,
+                tiledQuantilesPreCos,
+                firstJoinedLayer,
+                quantileValues,
+                indexedQuantiles,
+                actionInput,
+                quantileDistance,
+                observedRewards,
+                totalQuantileError,
+                belowQuantile,
+                sizedQuantiles,
+                quantileThresholds,
+                individualQValues,
+                qValues,
+                chosenAction,
+                maxQ
+            ) = sess.run([
+                n.quantilesEmbeddingBox,
+                n.cosineTimestep,
+                n.tiledQuantilesPreCos,
+                n.firstJoinedLayer,
+                n.quantileValues,
+                n.indexedQuantiles,
+                n.actionInput,
+                n.quantileDistance,
+                n.observedRewards,
+                n.totalQuantileError,
+                n.belowQuantile,
+                n.sizedQuantiles,
+                n.quantileThresholds,
+                n.individualQValues,
+                n.qValues,
+                n.chosenAction,
+                n.maxQ
+            ], feed_dict={
+                n.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(64, 8)),
+                n.environmentInput: np.random.uniform(low=0.0, high=1.0, size=(64, 1)),
+                n.actionInput: np.random.randint(2, size=(64)),
+                n.observedRewards: np.random.uniform(low=-200.0, high=200.0, size=(64))
+            })
+            np.testing.assert_equal(np.shape(quantilesEmbeddingBox), [64, 8, 9])
+            for x in range(64):
+                for y in range(8):
+                    for z in range(9):
+                        if x != 0:
+                            self.assertNotEqual(quantilesEmbeddingBox[0][y][z],quantilesEmbeddingBox[x][y][z])
+                        if y != 0:
+                            self.assertNotEqual(quantilesEmbeddingBox[x][0][z],quantilesEmbeddingBox[x][y][z])
+                        self.assertEqual(quantilesEmbeddingBox[x][y][0],quantilesEmbeddingBox[x][y][z])
+            np.testing.assert_equal(np.shape(cosineTimestep), [1, 1, 9])
+            self.assertEqual(cosineTimestep[0][0][0], 1)
+            self.assertEqual(cosineTimestep[0][0][8], 9)
+            for x in range(64):
+                for y in range(8):
+                    for z in range(9):
+                        self.assertEqual(tiledQuantilesPreCos[x][y][z], cosineTimestep[0][0][z] * quantilesEmbeddingBox[x][y][0])
+            np.testing.assert_equal(np.shape(firstJoinedLayer), [64, 8, 6])
+            np.testing.assert_equal(np.shape(quantileValues), [64, 2, 8])
+            np.testing.assert_equal(np.shape(indexedQuantiles), [64, 8])
+            for batchIndex in range(64):
+                for quantileIndex in range(8):
+                    self.assertEqual(indexedQuantiles[batchIndex][quantileIndex], quantileValues[batchIndex][actionInput[batchIndex]][quantileIndex])
+                    currentQuantileDistance = quantileDistance[batchIndex][quantileIndex]
+                    self.assertEqual(currentQuantileDistance, observedRewards[batchIndex] - indexedQuantiles[batchIndex][quantileIndex])
+                    if abs(currentQuantileDistance) <= 1.1:
+                        self.assertAlmostEqual(totalQuantileError[batchIndex][quantileIndex], 0.5 * currentQuantileDistance ** 2, 4)
+                    else:
+                        self.assertAlmostEqual(totalQuantileError[batchIndex][quantileIndex], 1.1 * (abs(currentQuantileDistance) - 0.5 * 1.1), 4)
+                    self.assertEqual(bool(belowQuantile[batchIndex][quantileIndex]), currentQuantileDistance < 0)
+                    if currentQuantileDistance > 0:
+                        self.assertAlmostEqual(sizedQuantiles[batchIndex][quantileIndex], quantileThresholds[batchIndex][quantileIndex], 7)
+                    else:
+                        self.assertAlmostEqual(sizedQuantiles[batchIndex][quantileIndex], 1 - quantileThresholds[batchIndex][quantileIndex], 7)
+            for batchIndex in range(64):
+                for action in range(2):
+                    for quantileIndex in range(8):
+                        self.assertAlmostEqual(individualQValues[batchIndex][action][quantileIndex], quantileValues[batchIndex][action][quantileIndex] * (1 - quantileThresholds[batchIndex][quantileIndex]), 5)
+                    self.assertAlmostEqual(qValues[batchIndex][action], np.mean(individualQValues[batchIndex][action]), 5)
+                    self.assertAlmostEqual(qValues[batchIndex][action], np.mean(individualQValues[batchIndex][action]), 5)
+                    self.assertAlmostEqual(maxQ[batchIndex], np.max(qValues[batchIndex]), 5)
+                    self.assertEqual(chosenAction[batchIndex], np.argmax(qValues[batchIndex]))
+
     # def testQValues(self):
     #     with tf.Session() as sess:
     #         n = Network(
