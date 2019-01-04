@@ -6,11 +6,12 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-learning-rate"
+experimentName = "iqn-learning-rate-2"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 batchSize=256
-learningRate = np.random.uniform(low=1e-5, high=1e-2)
+learningRateLog = np.random.uniform(low=-5, high=-2)
+learningRate = 1 * pow(10, learningRateLog)
 a = Agent(
     sess=sess,
     env=env,
@@ -38,15 +39,15 @@ a = Agent(
     learningRate=learningRate,
     priorityExponent= 0,
     epsilonInitial = 2,
-    epsilonDecay = .9985,
+    epsilonDecay = .997,
     minExploration = .01,
     maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
-    preNetworkSize = [256, 256],
-    postNetworkSize = [512],
-    numQuantiles = 32,
-    embeddingDimension = 64,
+    preNetworkSize = [128, 128],
+    postNetworkSize = [256],
+    numQuantiles = 12,
+    embeddingDimension = 24,
     kappa = 1.0,
     trainingIterations = 3
 )

@@ -28,7 +28,7 @@ for i in range(1):
         episodeStepLimit=1024,
         intermediateTests=False,
 
-        render=True,
+        render=False,
         showGraph=True,
 
         # hyperparameters
@@ -36,16 +36,16 @@ for i in range(1):
         batchSize=256,
         learningRate=0.0006,
         priorityExponent= 0,
-        epsilonInitial = 2,
-        epsilonDecay = .9985,
+        epsilonInitial = 1.5,
+        epsilonDecay = .998,
         minExploration = .01,
         maxExploration = .85,
         minFramesForTraining = 2048,
         maxGradientNorm = 5,
-        preNetworkSize = [256, 256],
-        postNetworkSize = [512],
-        numQuantiles = 32,
-        embeddingDimension = 64,
+        preNetworkSize = [256],
+        postNetworkSize = [256],
+        numQuantiles = 16,
+        embeddingDimension = 32,
         kappa = 1.0,
         trainingIterations = 3
     )
