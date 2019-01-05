@@ -6,12 +6,11 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-learning-rate-2"
+experimentName = "iqn-quantiles-embedding"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-batchSize=256
-learningRateLog = np.random.uniform(low=-3, high=-1)
-learningRate = 1 * pow(10, learningRateLog)
+numQuantiles = np.random.randint(low=1, high=64)
+embeddingDimension = np.random.randint(low=1, high=64)
 a = Agent(
     sess=sess,
     env=env,
@@ -36,7 +35,7 @@ a = Agent(
     # hyperparameters
     maxMemoryLength=int(1e6),
     batchSize=256,
-    learningRate=learningRate,
+    learningRate=1e-2,
     priorityExponent= 0,
     epsilonInitial = 2,
     epsilonDecay = .997,
@@ -44,16 +43,16 @@ a = Agent(
     maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
-    preNetworkSize = [128, 128],
-    postNetworkSize = [256],
-    numQuantiles = 12,
-    embeddingDimension = 24,
+    preNetworkSize = [256, 256],
+    postNetworkSize = [512],
+    numQuantiles = numQuantiles,
+    embeddingDimension = embeddingDimension,
     kappa = 1.0,
     trainingIterations = 3
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, learningRate, 0, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, numQuantiles, embeddingDimension, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()

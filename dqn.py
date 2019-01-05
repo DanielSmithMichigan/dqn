@@ -5,56 +5,48 @@ import gym
 
 env = gym.make('LunarLander-v2')
 
-allResults = []
+sess = tf.Session()
+a = Agent(
+    sess=sess,
+    env=env,
+    numAvailableActions=4,
+    numObservations=8,
+    rewardsMovingAverageSampleLength=200,
+    gamma=1,
+    nStepUpdate=1,
+    includeIntermediatePairs=False,
 
-for i in range(1):
-    print("BEGINNING")
-    sess = tf.Session()
-    a = Agent(
-        sess=sess,
-        env=env,
-        numAvailableActions=4,
-        numObservations=8,
-        rewardsMovingAverageSampleLength=200,
-        gamma=1,
-        nStepUpdate=1,
-        includeIntermediatePairs=False,
+    # test parameters
+    episodesPerTest=10000,
+    numTestPeriods=100,
+    numTestsPerTestPeriod=20,
+    maxRunningMinutes=600,
+    episodeStepLimit=1024,
+    intermediateTests=False,
 
-        # test parameters
-        episodesPerTest=25,
-        numTestPeriods=10000,
-        numTestsPerTestPeriod=0,
-        maxRunningMinutes=360,
-        episodeStepLimit=1024,
-        intermediateTests=False,
+    render=False,
+    showGraph=False,
+    saveModel=True,
 
-        render=False,
-        showGraph=True,
-
-        # hyperparameters
-        maxMemoryLength=int(1e6),
-        batchSize=256,
-        learningRate=0.0006,
-        priorityExponent= 0,
-        epsilonInitial = 1.5,
-        epsilonDecay = .998,
-        minExploration = .01,
-        maxExploration = .85,
-        minFramesForTraining = 2048,
-        maxGradientNorm = 5,
-        preNetworkSize = [256],
-        postNetworkSize = [256],
-        numQuantiles = 16,
-        embeddingDimension = 32,
-        kappa = 1.0,
-        trainingIterations = 3
-    )
-    testResults = a.execute()
-    if len(allResults) > 0:
-        allResults = np.vstack((allResults, testResults))
-    else:
-        allResults = np.array([testResults], dtype=object,ndmin=2)
-    np.savetxt("./test-results/proper-gradient-clipping.txt",allResults,delimiter=",")
+    # hyperparameters
+    maxMemoryLength=int(1e6),
+    batchSize=256,
+    learningRate=1e-2,
+    priorityExponent= 0,
+    epsilonInitial = 2,
+    epsilonDecay = .997,
+    minExploration = .01,
+    maxExploration = .85,
+    minFramesForTraining = 2048,
+    maxGradientNorm = 5,
+    preNetworkSize = [256, 256],
+    postNetworkSize = [512],
+    numQuantiles = 24,
+    embeddingDimension = 48,
+    kappa = 1.0,
+    trainingIterations = 3
+)
+testResults = a.execute()
 
 
 
