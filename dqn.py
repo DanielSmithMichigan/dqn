@@ -17,19 +17,19 @@ a = Agent(
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=10000,
-    numTestPeriods=100,
+    episodesPerTest=25,
+    numTestPeriods=10000,
     numTestsPerTestPeriod=20,
     maxRunningMinutes=600,
     episodeStepLimit=1024,
     intermediateTests=False,
 
     render=False,
-    showGraph=False,
-    saveModel=False,
+    showGraph=True,
+    saveModel=True,
     loadModel=False,
     disableRandomActions=False,
-    disableTraining=False
+    disableTraining=False,
     # agentName="agent_281576132",
 
     # hyperparameters
@@ -37,18 +37,19 @@ a = Agent(
     batchSize=256,
     learningRate=1e-2,
     priorityExponent= 0,
-    epsilonInitial = 2,
-    epsilonDecay = .997,
-    minExploration = .01,
+    epsilonInitial = 1,
+    epsilonDecay = .999,
+    minExploration = .05,
     maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
-    preNetworkSize = [256, 256],
-    postNetworkSize = [512],
-    numQuantiles = 24,
-    embeddingDimension = 48,
+    preNetworkSize = [128, 128],
+    postNetworkSize = [256],
+    numQuantiles = 8,
+    embeddingDimension = 16,
     kappa = 1.0,
-    trainingIterations = 3
+    trainingIterations = 4,
+    tau = 0.001
 )
 testResults = a.execute()
 

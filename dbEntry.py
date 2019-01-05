@@ -6,11 +6,10 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-quantiles-embedding"
+experimentName = "iqn-priority"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-numQuantiles = np.random.randint(low=1, high=64)
-embeddingDimension = np.random.randint(low=1, high=64)
+priorityExponent = np.random.random()
 a = Agent(
     sess=sess,
     env=env,
@@ -22,10 +21,10 @@ a = Agent(
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=10000,
-    numTestPeriods=100,
+    episodesPerTest=25,
+    numTestPeriods=10000,
     numTestsPerTestPeriod=20,
-    maxRunningMinutes=15,
+    maxRunningMinutes=600,
     episodeStepLimit=1024,
     intermediateTests=False,
 
@@ -33,28 +32,32 @@ a = Agent(
     showGraph=False,
     saveModel=False,
     loadModel=False,
+    disableRandomActions=False,
+    disableTraining=False,
+    # agentName="agent_281576132",
 
     # hyperparameters
     maxMemoryLength=int(1e6),
     batchSize=256,
     learningRate=1e-2,
-    priorityExponent= 0,
-    epsilonInitial = 2,
-    epsilonDecay = .997,
-    minExploration = .01,
+    priorityExponent= priorityExponent,
+    epsilonInitial = 1,
+    epsilonDecay = .999,
+    minExploration = .05,
     maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
-    preNetworkSize = [256, 256],
-    postNetworkSize = [512],
-    numQuantiles = numQuantiles,
-    embeddingDimension = embeddingDimension,
+    preNetworkSize = [128, 128],
+    postNetworkSize = [256],
+    numQuantiles = 8,
+    embeddingDimension = 16,
     kappa = 1.0,
-    trainingIterations = 3
+    trainingIterations = 4,
+    tau = 0.001
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, numQuantiles, embeddingDimension, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, experimentName, 0, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()

@@ -20,7 +20,8 @@ class Network:
             learningRate,
             maxGradientNorm,
             batchSize,
-            kappa
+            kappa,
+            targetNetwork=None
         ):
         self.name = name
         self.sess = sess
@@ -34,6 +35,7 @@ class Network:
         self.learningRate = learningRate
         self.kappa = kappa
         self.maxGradientNorm = maxGradientNorm
+        self.targetNetwork = targetNetwork
         self.losses = []
         self.build()
     def build(self):
@@ -55,13 +57,23 @@ class Network:
             for i in range(len(self.postNetworkSize)):
                 prevLayer = tf.layers.dense(inputs=prevLayer, units=self.postNetworkSize[i], activation=tf.nn.leaky_relu, kernel_initializer=self.weightsInitializer, name="post_hidden_"+str(i))
             # Shape: batchSize x numQuantiles x N
-            self.quantileValues = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions, kernel_initializer=self.weightsInitializer)
+            self.quantileValuesActions = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions, kernel_initializer=self.weightsInitializer)
+            # Shape: batchSize x numQuantiles x numActions
+            self.quantileValuesAverageAction = tf.reshape(tf.reduce_mean(self.quantileValuesActions, axis=2), [-1, self.numQuantiles, 1])
+            # Shape: batchSize x numQuantiles x 1
+            self.quantileValuesAdvantages = self.quantileValuesActions - self.quantileValuesAverageAction
+            # Shape: batchSize x numQuantiles x numActions
+            self.quantileValuesValue = tf.layers.dense(inputs=prevLayer, units=1, kernel_initializer=self.weightsInitializer)
+            # Shape: batchSize x numQuantiles x 1
+            self.quantileValues = self.quantileValuesAdvantages + self.quantileValuesValue
             # Shape: batchSize x numQuantiles x numActions
             self.quantileValues = tf.transpose(self.quantileValues, [0, 2, 1])
             # Shape: batchSize x numActions x numQuantiles
         self.networkParams = tf.trainable_variables(scope=self.name)
         self.buildMaxQHead()
-        self.buildTrainingOperation()
+        self.buildIndexedQuantiles()
+        if self.targetNetwork:
+            self.buildTrainingOperation()
     def buildEmbedding(self):
         self.quantileThresholds = tf.placeholder(tf.float32, [None, self.numQuantiles], "InputRandoms")
         # Shape: batchSize x numQuantiles
@@ -90,18 +102,23 @@ class Network:
         self.chosenAction = tf.argmax(self.qValues, axis=1)
         batchIndices = tf.cast(tf.range(tf.shape(self.qValues)[0]), tf.int64)
         self.chosenActionQValue = tf.gather_nd(self.qValues, tf.stack([batchIndices, tf.cast(self.chosenAction, tf.int64)], axis=1))
-    def buildTrainingOperation(self):
-        self.observedRewards = tf.placeholder(tf.float32, [None,], name="ObservedRewards")
-        # Shape: batchSize
-        self.memoryPriority = tf.placeholder(tf.float32, [None,], name="MemoryPriority")
-        # Shape: batchSize
+    def buildIndexedQuantiles(self):
         self.actionInput = tf.placeholder(tf.int32, [None,], name="ActionInput")
         # Shape: batchSize
         self.indexedQuantiles = tf.gather_nd(self.quantileValues, tf.cast(tf.stack([tf.range(tf.shape(self.quantileValues)[0]), self.actionInput], axis=1), tf.int64))
         # Shape: batchSize x numQuantiles
+    def buildTrainingOperation(self):
+        self.gammas = tf.placeholder(tf.float32, [None,], name="Gammas")
+        # Shape: batchSize
+        self.observedRewards = tf.placeholder(tf.float32, [None,], name="ObservedRewards")
+        # Shape: batchSize
+        self.memoryPriority = tf.placeholder(tf.float32, [None,], name="MemoryPriority")
+        # Shape: batchSize
         comparableRewards = tf.reshape(self.observedRewards, [-1, 1])
         # Shape: batchSize x 1
-        self.quantileDistance = comparableRewards - self.indexedQuantiles
+        comparableGammas = tf.reshape(self.gammas, [-1, 1])
+        # Shape: batchSize x 1
+        self.quantileDistance = (self.targetNetwork.indexedQuantiles * comparableGammas + comparableRewards) - self.indexedQuantiles
         # Shape: batchSize x numQuantiles
         self.absQuantileDistance = tf.abs(self.quantileDistance)
         # Shape: batchSize x numQuantiles
@@ -127,14 +144,25 @@ class Network:
         gradients, variables = zip(*self.optimizer.compute_gradients(self.finalLoss))
         self.gradients, _ = tf.clip_by_global_norm(gradients, self.maxGradientNorm)
         self.trainingOperation = self.optimizer.apply_gradients(zip(self.gradients, variables))
+    def buildSoftCopyOperation(self, networkParams, tau):
+        return [tf.assign(t, (1 - tau) * t + tau * e) for t, e in zip(self.networkParams, networkParams)]
     def trainAgainst(self, memoryUnits):
         actions = util.getColumn(memoryUnits, constants.ACTION)
+        quantileThresholds = np.random.uniform(low=0.0, high=1.0, size=(self.batchSize, self.numQuantiles))
+        nextActions = self.sess.run(self.chosenAction, feed_dict={
+            self.environmentInput: util.getColumn(memoryUnits, constants.NEXT_STATE),
+            self.quantileThresholds: quantileThresholds
+        })
         targets, predictions, batchwiseLoss, finalLoss, _ = self.sess.run([self.observedRewards, self.chosenActionQValue, self.batchwiseLoss, self.finalLoss, self.trainingOperation], feed_dict={
             self.environmentInput: util.getColumn(memoryUnits, constants.STATE),
             self.memoryPriority: util.getColumn(memoryUnits, constants.PRIORITY),
             self.actionInput: actions,
             self.observedRewards: util.getColumn(memoryUnits, constants.REWARD),
-            self.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(self.batchSize, self.numQuantiles))
+            self.gammas: util.getColumn(memoryUnits, constants.GAMMA),
+            self.quantileThresholds: quantileThresholds,
+            self.targetNetwork.environmentInput: util.getColumn(memoryUnits, constants.NEXT_STATE),
+            self.targetNetwork.actionInput: nextActions,
+            self.targetNetwork.quantileThresholds: quantileThresholds
         })
         self.losses.append(finalLoss)
         for i in range(len(memoryUnits)):

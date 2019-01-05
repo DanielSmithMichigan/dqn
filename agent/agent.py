@@ -56,6 +56,7 @@ class Agent:
             numQuantiles,
             embeddingDimension,
             kappa,
+            tau,
             trainingIterations,
             saveModel,
             loadModel,
@@ -78,6 +79,7 @@ class Agent:
         self.numAvailableActions = numAvailableActions
         self.maxRunningMinutes = maxRunningMinutes
         self.gamma = gamma
+        self.tau = tau
         self.episodeStepLimit = episodeStepLimit
         self.totalEpisodeReward = 0
         self.maxMeanReward = -10000000
@@ -95,20 +97,6 @@ class Agent:
             priorityExponent=priorityExponent,
             batchSize=batchSize
         )
-        self.learnedNetwork = Network(
-            name="learned-network-" + self.agentName,
-            sess=sess,
-            numObservations=numObservations,
-            numAvailableActions=numAvailableActions,
-            learningRate=learningRate,
-            maxGradientNorm=maxGradientNorm,
-            batchSize=batchSize,
-            preNetworkSize=preNetworkSize,
-            postNetworkSize=postNetworkSize,
-            numQuantiles=numQuantiles,
-            embeddingDimension=embeddingDimension,
-            kappa=kappa
-        )
         self.targetNetwork = Network(
             name="target-network-" + self.agentName,
             sess=sess,
@@ -123,6 +111,23 @@ class Agent:
             embeddingDimension=embeddingDimension,
             kappa=kappa
         )
+        self.learnedNetwork = Network(
+            name="learned-network-" + self.agentName,
+            sess=sess,
+            numObservations=numObservations,
+            numAvailableActions=numAvailableActions,
+            learningRate=learningRate,
+            maxGradientNorm=maxGradientNorm,
+            batchSize=batchSize,
+            preNetworkSize=preNetworkSize,
+            postNetworkSize=postNetworkSize,
+            numQuantiles=numQuantiles,
+            embeddingDimension=embeddingDimension,
+            kappa=kappa,
+            targetNetwork=self.targetNetwork
+        )
+        self.duplicateLearnedNetwork = self.targetNetwork.buildSoftCopyOperation(self.learnedNetwork.networkParams, 1)
+        self.softCopyLearnedNetwork = self.targetNetwork.buildSoftCopyOperation(self.learnedNetwork.networkParams, self.tau)
         self.minFramesForTraining = minFramesForTraining
         self.intermediateTests = intermediateTests
         self.testOutput = []
@@ -175,6 +180,7 @@ class Agent:
         trainingEpisodes = self.memoryBuffer.getMemoryBatch()
         targets, predictions, actions = self.learnedNetwork.trainAgainst(trainingEpisodes)
         choice = np.random.randint(len(targets))
+        self.sess.run(self.softCopyLearnedNetwork)
         self.recentTarget = targets[choice]
         self.recentPrediction = predictions[choice]
         self.recentAction = actions[choice]
@@ -286,10 +292,7 @@ class Agent:
         agentChoices = agentChoices / sumChoices
         agentChoices[self.numAvailableActions] = epsilon
         self.choicesOverTime.append(agentChoices)
-        cumulativeReward = 0
         for i in reversed(self.episodeMemories):
-            cumulativeReward = cumulativeReward + i[constants.REWARD]
-            i[constants.REWARD] = cumulativeReward
             self.memoryBuffer.add(i)
         if (recordTestResult):
             self.testResults.append(self.totalEpisodeReward)
@@ -307,6 +310,7 @@ class Agent:
             self.saver.restore(self.sess, "models/"+self.agentName+".ckpt")
         else:
             self.sess.run(tf.global_variables_initializer())
+            self.sess.run(self.duplicateLearnedNetwork)
     def execute(self):
         self.initModelVariables()
         for testNum in range(self.numTestPeriods):
