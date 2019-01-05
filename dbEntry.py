@@ -31,6 +31,8 @@ a = Agent(
 
     render=False,
     showGraph=False,
+    saveModel=False,
+    loadModel=False,
 
     # hyperparameters
     maxMemoryLength=int(1e6),

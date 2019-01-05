@@ -26,7 +26,11 @@ a = Agent(
 
     render=False,
     showGraph=False,
-    saveModel=True,
+    saveModel=False,
+    loadModel=False,
+    disableRandomActions=False,
+    disableTraining=False
+    # agentName="agent_281576132",
 
     # hyperparameters
     maxMemoryLength=int(1e6),

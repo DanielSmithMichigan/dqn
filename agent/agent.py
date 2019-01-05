@@ -56,8 +56,14 @@ class Agent:
             numQuantiles,
             embeddingDimension,
             kappa,
-            trainingIterations
+            trainingIterations,
+            saveModel,
+            loadModel,
+            disableRandomActions,
+            disableTraining,
+            agentName="agent_" + str(np.random.randint(low=100000000, high=999999999))
         ):
+        self.agentName = agentName
         self.startTime = time.time()
         self.sess = sess
         self.env = env
@@ -74,10 +80,15 @@ class Agent:
         self.gamma = gamma
         self.episodeStepLimit = episodeStepLimit
         self.totalEpisodeReward = 0
+        self.maxMeanReward = -10000000
         self.render = render
         self.numTestPeriods = numTestPeriods
         self.numTestsPerTestPeriod = numTestsPerTestPeriod
         self.showGraph = showGraph
+        self.saveModel = saveModel
+        self.loadModel = loadModel
+        self.disableRandomActions = disableRandomActions
+        self.disableTraining = disableTraining
         self.numTestsPerTestPeriod = numTestsPerTestPeriod
         self.memoryBuffer = PrioritizedExperienceReplay(
             numMemories=maxMemoryLength,
@@ -85,7 +96,21 @@ class Agent:
             batchSize=batchSize
         )
         self.learnedNetwork = Network(
-            name="learned-network-"+str(np.random.randint(100000, 999999)),
+            name="learned-network-" + self.agentName,
+            sess=sess,
+            numObservations=numObservations,
+            numAvailableActions=numAvailableActions,
+            learningRate=learningRate,
+            maxGradientNorm=maxGradientNorm,
+            batchSize=batchSize,
+            preNetworkSize=preNetworkSize,
+            postNetworkSize=postNetworkSize,
+            numQuantiles=numQuantiles,
+            embeddingDimension=embeddingDimension,
+            kappa=kappa
+        )
+        self.targetNetwork = Network(
+            name="target-network-" + self.agentName,
             sess=sess,
             numObservations=numObservations,
             numAvailableActions=numAvailableActions,
@@ -116,6 +141,7 @@ class Agent:
         self.agentAssessmentsOverTime = []
         self.epsilonOverTime = []
         self.choicesOverTime = []
+        self.saver = tf.train.Saver()
     def getAgentAssessment(self, state):
         qValues, maxQ = self.sess.run([
             self.learnedNetwork.qValues,
@@ -218,7 +244,7 @@ class Agent:
         plt.pause(0.00001)
     def playEpisode(self, useRandomActions, recordTestResult, testNum=0):
         epsilon = 0
-        if useRandomActions:
+        if useRandomActions and (not self.disableRandomActions):
             self.epsilon = self.epsilon * self.epsilonDecay
             epsilon = min(np.random.random() * self.epsilon, 1)
             epsilon = max(epsilon, self.minExploration)
@@ -245,7 +271,12 @@ class Agent:
             if done:
                 break
         self.rewardsReceivedOverTime.append(self.totalEpisodeReward)
-        print("Episode ",len(self.rewardsReceivedOverTime),": ",np.mean(self.rewardsReceivedOverTime[-self.rewardsMovingAverageSampleLength:]))
+        meanReward = np.mean(self.rewardsReceivedOverTime[-self.rewardsMovingAverageSampleLength:])
+        print("Episode ",len(self.rewardsReceivedOverTime),": ",meanReward)
+        if self.saveModel:
+            if meanReward > self.maxMeanReward:
+                self.maxMeanReward = meanReward
+                self.saver.save(self.sess, "models/"+self.agentName+".ckpt")
         periodResults = self.rewardsReceivedOverTime[-self.numTestsPerTestPeriod:]
         mu = np.mean(periodResults)
         std = np.std(periodResults)
@@ -271,12 +302,17 @@ class Agent:
             self.testOutput.append(np.mean(self.testResults))
     def outOfTime(self):
         return time.time() > self.startTime + (self.maxRunningMinutes * 60)
+    def initModelVariables(self):
+        if (self.loadModel):
+            self.saver.restore(self.sess, "models/"+self.agentName+".ckpt")
+        else:
+            self.sess.run(tf.global_variables_initializer())
     def execute(self):
-        self.sess.run(tf.global_variables_initializer())
+        self.initModelVariables()
         for testNum in range(self.numTestPeriods):
             for episodeNum in range(self.episodesPerTest):
                 self.playEpisode(useRandomActions=True,recordTestResult=False)
-                if self.memoryBuffer.length > self.minFramesForTraining:
+                if self.memoryBuffer.length > self.minFramesForTraining and not (self.disableTraining):
                     for trainingIteration in range(self.trainingIterations):
                         self.train()
                 if self.outOfTime():
