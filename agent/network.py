@@ -6,11 +6,15 @@ from . import constants
 from . import util
 import math
 slim = tf.contrib.slim
+import matplotlib
+import matplotlib.pyplot as plt
+plt.ion()
 
 class Network:
     def __init__(self,
             name,
             sess,
+            showGraph,
             numObservations,
             preNetworkSize,
             postNetworkSize,
@@ -25,6 +29,7 @@ class Network:
         ):
         self.name = name
         self.sess = sess
+        self.showGraph = showGraph
         self.numAvailableActions = numAvailableActions
         self.numObservations = numObservations
         self.preNetworkSize = preNetworkSize
@@ -38,6 +43,8 @@ class Network:
         self.targetNetwork = targetNetwork
         self.losses = []
         self.build()
+        if self.showGraph:
+            self.buildGraphs()
     def build(self):
         with tf.variable_scope(self.name):
             self.weightsInitializer = slim.variance_scaling_initializer(factor=1.0 / np.sqrt(3.0), mode='FAN_IN', uniform=True)
@@ -57,15 +64,7 @@ class Network:
             for i in range(len(self.postNetworkSize)):
                 prevLayer = tf.layers.dense(inputs=prevLayer, units=self.postNetworkSize[i], activation=tf.nn.leaky_relu, kernel_initializer=self.weightsInitializer, name="post_hidden_"+str(i))
             # Shape: batchSize x numQuantiles x N
-            self.quantileValuesActions = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions, kernel_initializer=self.weightsInitializer)
-            # Shape: batchSize x numQuantiles x numActions
-            self.quantileValuesAverageAction = tf.reshape(tf.reduce_mean(self.quantileValuesActions, axis=2), [-1, self.numQuantiles, 1])
-            # Shape: batchSize x numQuantiles x 1
-            self.quantileValuesAdvantages = self.quantileValuesActions - self.quantileValuesAverageAction
-            # Shape: batchSize x numQuantiles x numActions
-            self.quantileValuesValue = tf.layers.dense(inputs=prevLayer, units=1, kernel_initializer=self.weightsInitializer)
-            # Shape: batchSize x numQuantiles x 1
-            self.quantileValues = self.quantileValuesAdvantages + self.quantileValuesValue
+            self.quantileValues = tf.layers.dense(inputs=prevLayer, units=self.numAvailableActions, kernel_initializer=self.weightsInitializer)
             # Shape: batchSize x numQuantiles x numActions
             self.quantileValues = tf.transpose(self.quantileValues, [0, 2, 1])
             # Shape: batchSize x numActions x numQuantiles
@@ -89,14 +88,25 @@ class Network:
         # Shape: batchSize x numQuantiles x embeddingDimension
         self.comparableQuantiles = self.tiledQuantiles
         # Shape: batchSize x numQuantiles x embeddingDimension
+    def buildGraphs(self):
+        self.overview = plt.figure()
+        self.previousEvaluationLearned = self.overview.add_subplot(2, 1, 1)
+        self.previousLearnedQuantileThresholds = np.zeros((self.numQuantiles,))
+        self.previousLearnedQuantileValues = np.zeros((self.numQuantiles,))
+
+        self.previousEvaluationTarget = self.overview.add_subplot(2, 1, 2)
+        self.previousTargetQuantileThresholds = np.zeros((self.numQuantiles,))
+        self.previousTargetQuantileValues = np.zeros((self.numQuantiles,))
+    def updateGraphs(self):
+        self.previousEvaluationLearned.cla()
+        self.previousEvaluationLearned.set_title("Learned")
+        self.previousEvaluationLearned.scatter(self.previousLearnedQuantileThresholds, self.previousLearnedQuantileValues)
+        self.previousEvaluationTarget.cla()
+        self.previousEvaluationTarget.set_title("Target")
+        self.previousEvaluationTarget.scatter(self.previousTargetQuantileThresholds, self.previousTargetQuantileValues)
+        self.overview.canvas.draw()
     def buildMaxQHead(self):
-        self.reversedThresholds = tf.constant(1.0) - self.quantileThresholds
-        # Shape: batchSize x numQuantiles
-        self.comparableReversedThresholds = tf.reshape(self.reversedThresholds, [-1, 1, self.numQuantiles])
-        # Shape: batchSize x 1 x numQuantiles
-        self.individualQValues = self.comparableReversedThresholds * self.quantileValues
-        # Shape: batchSize x numActions x numQuantiles
-        self.qValues = tf.reduce_mean(self.individualQValues, axis=2)
+        self.qValues = tf.reduce_mean(self.quantileValues, axis=2)
         # Shape: batchSize x numActions
         self.maxQ = tf.reduce_max(self.qValues, axis=1)
         self.chosenAction = tf.argmax(self.qValues, axis=1)
@@ -114,29 +124,40 @@ class Network:
         # Shape: batchSize
         self.memoryPriority = tf.placeholder(tf.float32, [None,], name="MemoryPriority")
         # Shape: batchSize
-        comparableRewards = tf.reshape(self.observedRewards, [-1, 1])
-        # Shape: batchSize x 1
-        comparableGammas = tf.reshape(self.gammas, [-1, 1])
-        # Shape: batchSize x 1
-        self.quantileDistance = (self.targetNetwork.indexedQuantiles * comparableGammas + comparableRewards) - self.indexedQuantiles
-        # Shape: batchSize x numQuantiles
+        comparableRewards = tf.reshape(self.observedRewards, [-1, 1, 1])
+        # Shape: batchSize x 1 x 1
+        comparableGammas = tf.reshape(self.gammas, [-1, 1, 1])
+        # Shape: batchSize x 1 x 1
+        self.reshapedIndexedTargetQuantiles = tf.reshape(tf.stop_gradient(self.targetNetwork.indexedQuantiles), [-1, 1, self.numQuantiles])
+        # Shape: batchSize x 1 x numTargetQuantiles
+        self.tiledTargetValues = tf.tile(self.reshapedIndexedTargetQuantiles, [1, self.numQuantiles, 1])
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
+        self.targetValues = self.tiledTargetValues * comparableGammas + comparableRewards
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
+        self.reshapedIndexedQuantiles = tf.reshape(self.indexedQuantiles, [-1, self.numQuantiles, 1])
+        # Shape: batchSize x numQuantiles x 1
+        self.predictedValues = tf.tile(self.reshapedIndexedQuantiles, [1, 1, self.numQuantiles])
+        # Shape: batchSize x numQuantiles x 1
+        self.quantileDistance = self.targetValues - self.predictedValues
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
         self.absQuantileDistance = tf.abs(self.quantileDistance)
-        # Shape: batchSize x numQuantiles
-        self.minorQuantileError = tf.to_float(self.absQuantileDistance <= self.kappa) * 0.5 * self.absQuantileDistance ** 2
-        # Shape: batchSize x numQuantiles
-        self.majorQuantileError = tf.to_float(self.absQuantileDistance > self.kappa) * self.kappa * (self.absQuantileDistance - 0.5 * self.kappa)
-        # Shape: batchSize x numQuantiles
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
+        self.minorQuantileError = tf.stop_gradient(tf.to_float(self.absQuantileDistance <= self.kappa)) * 0.5 * self.absQuantileDistance ** 2
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
+        self.majorQuantileError = tf.stop_gradient(tf.to_float(self.absQuantileDistance > self.kappa)) * self.kappa * (self.absQuantileDistance - 0.5 * self.kappa)
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
         self.totalQuantileError = self.minorQuantileError + self.majorQuantileError
-        # Shape: batchSize x numQuantiles
-        self.belowQuantile = tf.to_float(comparableRewards < self.indexedQuantiles)
-        # Shape: batchSize x numQuantiles
-        self.sizedQuantiles = tf.abs(self.quantileThresholds - self.belowQuantile)
-        # Shape: batchSize x numQuantiles
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
+        self.belowQuantile = tf.stop_gradient(tf.to_float(self.targetValues < self.predictedValues))
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
+        self.sizedQuantiles = tf.abs(self.reshapedQuantileThresholdsBox - self.belowQuantile)
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
         self.quantileRegressionLoss = self.sizedQuantiles * self.totalQuantileError / self.kappa
-        # Shape: batchSize x numQuantiles
-        self.batchwiseLoss = tf.reduce_sum(self.quantileRegressionLoss, axis=1)
+        # Shape: batchSize x numQuantiles x numTargetQuantiles
+        self.sumQuantileLoss = tf.reduce_sum(self.quantileRegressionLoss, axis=2)
+        self.batchwiseLoss = tf.reduce_sum(self.sumQuantileLoss, axis=1)
         # Shape: batchSize
-        self.proportionedLoss = self.batchwiseLoss / self.memoryPriority
+        self.proportionedLoss = (self.batchwiseLoss / self.memoryPriority) / self.numQuantiles
         # Shape: batchSize
         self.finalLoss = tf.reduce_mean(self.proportionedLoss)
         # Shape: 1
@@ -148,22 +169,45 @@ class Network:
         return [tf.assign(t, (1 - tau) * t + tau * e) for t, e in zip(self.networkParams, networkParams)]
     def trainAgainst(self, memoryUnits):
         actions = util.getColumn(memoryUnits, constants.ACTION)
-        quantileThresholds = np.random.uniform(low=0.0, high=1.0, size=(self.batchSize, self.numQuantiles))
         nextActions = self.sess.run(self.chosenAction, feed_dict={
             self.environmentInput: util.getColumn(memoryUnits, constants.NEXT_STATE),
-            self.quantileThresholds: quantileThresholds
+            self.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(self.batchSize, self.numQuantiles))
         })
-        targets, predictions, batchwiseLoss, finalLoss, _ = self.sess.run([self.observedRewards, self.chosenActionQValue, self.batchwiseLoss, self.finalLoss, self.trainingOperation], feed_dict={
+        (targets,
+            predictions,
+            batchwiseLoss,
+            finalLoss,
+            _,
+            learnedQuantileThresholdsOut,
+            learnedQuantileValues,
+            targetQuantileThresholdsOut,
+            targetQuantileValues
+        ) = self.sess.run([
+            self.targetValues,
+            self.predictedValues,
+            self.batchwiseLoss,
+            self.finalLoss,
+            self.trainingOperation,
+            self.quantileThresholds,
+            self.quantileValues,
+            self.targetNetwork.quantileThresholds,
+            self.targetNetwork.quantileValues
+        ], feed_dict={
             self.environmentInput: util.getColumn(memoryUnits, constants.STATE),
             self.memoryPriority: util.getColumn(memoryUnits, constants.PRIORITY),
             self.actionInput: actions,
             self.observedRewards: util.getColumn(memoryUnits, constants.REWARD),
             self.gammas: util.getColumn(memoryUnits, constants.GAMMA),
-            self.quantileThresholds: quantileThresholds,
+            self.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(self.batchSize, self.numQuantiles)),
             self.targetNetwork.environmentInput: util.getColumn(memoryUnits, constants.NEXT_STATE),
             self.targetNetwork.actionInput: nextActions,
-            self.targetNetwork.quantileThresholds: quantileThresholds
+            self.targetNetwork.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(self.batchSize, self.numQuantiles))
         })
+        selectedBatch = np.random.randint(self.batchSize)
+        self.previousLearnedQuantileThresholds = learnedQuantileThresholdsOut[selectedBatch]
+        self.previousLearnedQuantileValues = learnedQuantileValues[selectedBatch][actions[selectedBatch]]
+        self.previousTargetQuantileThresholds = targetQuantileThresholdsOut[selectedBatch]
+        self.previousTargetQuantileValues = targetQuantileValues[selectedBatch][nextActions[selectedBatch]]
         self.losses.append(finalLoss)
         for i in range(len(memoryUnits)):
             memoryUnits[i][constants.LOSS] = batchwiseLoss[i]

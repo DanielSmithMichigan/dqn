@@ -100,6 +100,7 @@ class Agent:
         self.targetNetwork = Network(
             name="target-network-" + self.agentName,
             sess=sess,
+            showGraph=False,
             numObservations=numObservations,
             numAvailableActions=numAvailableActions,
             learningRate=learningRate,
@@ -114,6 +115,7 @@ class Agent:
         self.learnedNetwork = Network(
             name="learned-network-" + self.agentName,
             sess=sess,
+            showGraph=showGraph,
             numObservations=numObservations,
             numAvailableActions=numAvailableActions,
             learningRate=learningRate,
@@ -180,9 +182,11 @@ class Agent:
         trainingEpisodes = self.memoryBuffer.getMemoryBatch()
         targets, predictions, actions = self.learnedNetwork.trainAgainst(trainingEpisodes)
         choice = np.random.randint(len(targets))
+        choice2 = np.random.randint(len(targets[choice]))
+        choice3 = np.random.randint(len(targets[choice][choice2]))
         self.sess.run(self.softCopyLearnedNetwork)
-        self.recentTarget = targets[choice]
-        self.recentPrediction = predictions[choice]
+        self.recentTarget = targets[choice][choice2][choice3]
+        self.recentPrediction = predictions[choice][choice2][choice3]
         self.recentAction = actions[choice]
         self.memoryBuffer.updateMemories(trainingEpisodes)
     def buildGraphs(self):
@@ -247,6 +251,7 @@ class Agent:
         self.qValueExample.set_ylabel("Q Value")
         self.qValuesFigure.canvas.draw()
 
+        self.learnedNetwork.updateGraphs()
         plt.pause(0.00001)
     def playEpisode(self, useRandomActions, recordTestResult, testNum=0):
         epsilon = 0

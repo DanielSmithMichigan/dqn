@@ -38,18 +38,18 @@ a = Agent(
     learningRate=1e-2,
     priorityExponent= 0,
     epsilonInitial = 1,
-    epsilonDecay = .999,
-    minExploration = .05,
-    maxExploration = .85,
+    epsilonDecay = .9975,
+    minExploration = .01,
+    maxExploration = 1.0,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
     preNetworkSize = [128, 128],
-    postNetworkSize = [256],
-    numQuantiles = 8,
-    embeddingDimension = 16,
+    postNetworkSize = [512],
+    numQuantiles = 32,
+    embeddingDimension = 64,
     kappa = 1.0,
     trainingIterations = 4,
-    tau = 0.001
+    tau = 0.01
 )
 testResults = a.execute()
 

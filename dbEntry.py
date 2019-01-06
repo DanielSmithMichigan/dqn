@@ -6,10 +6,11 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-priority-2"
+experimentName = "iqn-tau"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-priorityExponent = np.random.random()
+tauExp = np.random.random(low=-1, high=-4)
+tau = 1 * pow(10, tauExp)
 a = Agent(
     sess=sess,
     env=env,
@@ -21,10 +22,10 @@ a = Agent(
     includeIntermediatePairs=False,
 
     # test parameters
-    episodesPerTest=10000,
+    episodesPerTest=25,
     numTestPeriods=10000,
     numTestsPerTestPeriod=20,
-    maxRunningMinutes=45,
+    maxRunningMinutes=40,
     episodeStepLimit=1024,
     intermediateTests=False,
 
@@ -40,24 +41,24 @@ a = Agent(
     maxMemoryLength=int(1e6),
     batchSize=256,
     learningRate=1e-2,
-    priorityExponent= priorityExponent,
+    priorityExponent= 0,
     epsilonInitial = 1,
-    epsilonDecay = .999,
-    minExploration = .05,
-    maxExploration = .85,
+    epsilonDecay = .9975,
+    minExploration = .01,
+    maxExploration = 1.0,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
-    preNetworkSize = [256, 256],
+    preNetworkSize = [128, 128],
     postNetworkSize = [512],
     numQuantiles = 32,
-    embeddingDimension = 32,
+    embeddingDimension = 64,
     kappa = 1.0,
     trainingIterations = 4,
-    tau = 0.001
+    tau = tau
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, priorityExponent, 0, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, tau, 0, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()

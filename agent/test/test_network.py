@@ -35,8 +35,8 @@ import sys
 class TestNetwork(unittest.TestCase):
     def testQuantilesShape(self):
         with tf.Session() as sess:
-            n = Network(
-                name="test-network-1",
+            targetNetwork = Network(
+                name="target-network",
                 sess=sess,
                 numObservations=1,
                 numAvailableActions=2,
@@ -48,6 +48,21 @@ class TestNetwork(unittest.TestCase):
                 maxGradientNorm=5,
                 batchSize=64,
                 kappa=1.1
+            )
+            n = Network(
+                name="learning-network",
+                sess=sess,
+                numObservations=1,
+                numAvailableActions=2,
+                preNetworkSize=[6],
+                postNetworkSize=[7],
+                numQuantiles=8,
+                embeddingDimension=9,
+                learningRate=1e-5,
+                maxGradientNorm=5,
+                batchSize=64,
+                kappa=1.1,
+                targetNetwork=targetNetwork
             )
             sess.run(tf.global_variables_initializer())
             (
@@ -64,10 +79,15 @@ class TestNetwork(unittest.TestCase):
                 belowQuantile,
                 sizedQuantiles,
                 quantileThresholds,
-                individualQValues,
                 qValues,
                 chosenAction,
-                maxQ
+                maxQ,
+                targetNetworkIndexedQuantiles,
+                tiledTargetValues,
+                gammas,
+                targetValues,
+                predictedValues,
+                quantileRegressionLoss
             ) = sess.run([
                 n.quantilesEmbeddingBox,
                 n.cosineTimestep,
@@ -82,15 +102,24 @@ class TestNetwork(unittest.TestCase):
                 n.belowQuantile,
                 n.sizedQuantiles,
                 n.quantileThresholds,
-                n.individualQValues,
                 n.qValues,
                 n.chosenAction,
-                n.maxQ
+                n.maxQ,
+                targetNetwork.indexedQuantiles,
+                n.tiledTargetValues,
+                n.gammas,
+                n.targetValues,
+                n.predictedValues,
+                n.quantileRegressionLoss
             ], feed_dict={
                 n.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(64, 8)),
                 n.environmentInput: np.random.uniform(low=0.0, high=1.0, size=(64, 1)),
                 n.actionInput: np.random.randint(2, size=(64)),
-                n.observedRewards: np.random.uniform(low=-200.0, high=200.0, size=(64))
+                n.gammas: np.random.uniform(low=0.0, high=1.0, size=(64)),
+                n.observedRewards: np.random.uniform(low=-200.0, high=200.0, size=(64)),
+                targetNetwork.environmentInput: np.random.uniform(low=0.0, high=1.0, size=(64, 1)),
+                targetNetwork.actionInput: np.random.randint(2, size=(64)),
+                targetNetwork.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(64, 8))
             })
             np.testing.assert_equal(np.shape(quantilesEmbeddingBox), [64, 8, 9])
             for x in range(64):
@@ -111,28 +140,36 @@ class TestNetwork(unittest.TestCase):
             np.testing.assert_equal(np.shape(firstJoinedLayer), [64, 8, 6])
             np.testing.assert_equal(np.shape(quantileValues), [64, 2, 8])
             np.testing.assert_equal(np.shape(indexedQuantiles), [64, 8])
+            np.testing.assert_equal(np.shape(predictedValues), [64, 8, 8])
+            np.testing.assert_equal(np.shape(targetValues), [64, 8, 8])
+            np.testing.assert_equal(np.shape(totalQuantileError), [64, 8, 8])
+            np.testing.assert_equal(np.shape(quantileRegressionLoss), [64, 8, 8])
             for batchIndex in range(64):
                 for quantileIndex in range(8):
                     self.assertEqual(indexedQuantiles[batchIndex][quantileIndex], quantileValues[batchIndex][actionInput[batchIndex]][quantileIndex])
-                    currentQuantileDistance = quantileDistance[batchIndex][quantileIndex]
-                    self.assertEqual(currentQuantileDistance, observedRewards[batchIndex] - indexedQuantiles[batchIndex][quantileIndex])
-                    if abs(currentQuantileDistance) <= 1.1:
-                        self.assertAlmostEqual(totalQuantileError[batchIndex][quantileIndex], 0.5 * currentQuantileDistance ** 2, 4)
-                    else:
-                        self.assertAlmostEqual(totalQuantileError[batchIndex][quantileIndex], 1.1 * (abs(currentQuantileDistance) - 0.5 * 1.1), 4)
-                    self.assertEqual(bool(belowQuantile[batchIndex][quantileIndex]), currentQuantileDistance < 0)
-                    if currentQuantileDistance > 0:
-                        self.assertAlmostEqual(sizedQuantiles[batchIndex][quantileIndex], quantileThresholds[batchIndex][quantileIndex], 7)
-                    else:
-                        self.assertAlmostEqual(sizedQuantiles[batchIndex][quantileIndex], 1 - quantileThresholds[batchIndex][quantileIndex], 7)
-            for batchIndex in range(64):
-                for action in range(2):
-                    for quantileIndex in range(8):
-                        self.assertAlmostEqual(individualQValues[batchIndex][action][quantileIndex], quantileValues[batchIndex][action][quantileIndex] * (1 - quantileThresholds[batchIndex][quantileIndex]), 5)
-                    self.assertAlmostEqual(qValues[batchIndex][action], np.mean(individualQValues[batchIndex][action]), 5)
-                    self.assertAlmostEqual(qValues[batchIndex][action], np.mean(individualQValues[batchIndex][action]), 5)
-                    self.assertAlmostEqual(maxQ[batchIndex], np.max(qValues[batchIndex]), 5)
-                    self.assertEqual(chosenAction[batchIndex], np.argmax(qValues[batchIndex]))
+                    for quantileIndex_2 in range(8):
+                        self.assertEqual(predictedValues[batchIndex][quantileIndex][quantileIndex], predictedValues[batchIndex][quantileIndex][quantileIndex_2])
+                    for targetNetworkQuantileIndex in range(8):
+                        for quantileIndex_2 in range(8):
+                            self.assertEqual(tiledTargetValues[batchIndex][quantileIndex][targetNetworkQuantileIndex],tiledTargetValues[batchIndex][quantileIndex_2][targetNetworkQuantileIndex])    
+                        self.assertEqual(tiledTargetValues[batchIndex][quantileIndex][targetNetworkQuantileIndex], targetNetworkIndexedQuantiles[batchIndex][targetNetworkQuantileIndex])
+                        self.assertAlmostEqual(targetValues[batchIndex][quantileIndex][targetNetworkQuantileIndex], targetNetworkIndexedQuantiles[batchIndex][targetNetworkQuantileIndex] * gammas[batchIndex] + observedRewards[batchIndex], 5)
+                        currentQuantileDistance = quantileDistance[batchIndex][quantileIndex][targetNetworkQuantileIndex]
+                        self.assertAlmostEqual(currentQuantileDistance, (targetNetworkIndexedQuantiles[batchIndex][targetNetworkQuantileIndex] * gammas[batchIndex] + observedRewards[batchIndex]) - indexedQuantiles[batchIndex][quantileIndex], 5)
+                        if abs(currentQuantileDistance) <= 1.1:
+                            self.assertAlmostEqual(totalQuantileError[batchIndex][quantileIndex][targetNetworkQuantileIndex], 0.5 * currentQuantileDistance ** 2, 4)
+                        else:
+                            self.assertAlmostEqual(totalQuantileError[batchIndex][quantileIndex][targetNetworkQuantileIndex], 1.1 * (abs(currentQuantileDistance) - 0.5 * 1.1), 4)
+                        self.assertEqual(bool(belowQuantile[batchIndex][quantileIndex][targetNetworkQuantileIndex]), currentQuantileDistance < 0)
+                        if currentQuantileDistance > 0:
+                            self.assertAlmostEqual(sizedQuantiles[batchIndex][quantileIndex][targetNetworkQuantileIndex], quantileThresholds[batchIndex][quantileIndex], 7)
+                        else:
+                            self.assertAlmostEqual(sizedQuantiles[batchIndex][quantileIndex][targetNetworkQuantileIndex], 1 - quantileThresholds[batchIndex][quantileIndex], 7)
+            # for batchIndex in range(64):
+            #     for action in range(2):
+            #         self.assertAlmostEqual(qValues[batchIndex][action], np.mean(quantileValues[batchIndex][action]), 5)
+            #         self.assertAlmostEqual(maxQ[batchIndex], np.max(qValues[batchIndex]), 5)
+            #         self.assertEqual(chosenAction[batchIndex], np.argmax(qValues[batchIndex]))
 
     # def testQValues(self):
     #     with tf.Session() as sess:
