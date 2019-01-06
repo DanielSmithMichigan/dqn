@@ -9,7 +9,7 @@ db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.
 experimentName = "iqn-tau"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-tauExp = np.random.random(low=-1, high=-4)
+tauExp = np.random.uniform(low=-1, high=-4)
 tau = 1 * pow(10, tauExp)
 a = Agent(
     sess=sess,
