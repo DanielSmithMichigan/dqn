@@ -6,7 +6,7 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-priority"
+experimentName = "iqn-priority-2"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
 priorityExponent = np.random.random()
@@ -24,7 +24,7 @@ a = Agent(
     episodesPerTest=10000,
     numTestPeriods=10000,
     numTestsPerTestPeriod=20,
-    maxRunningMinutes=20,
+    maxRunningMinutes=45,
     episodeStepLimit=1024,
     intermediateTests=False,
 
@@ -47,10 +47,10 @@ a = Agent(
     maxExploration = .85,
     minFramesForTraining = 2048,
     maxGradientNorm = 5,
-    preNetworkSize = [128, 128],
-    postNetworkSize = [256],
-    numQuantiles = 8,
-    embeddingDimension = 16,
+    preNetworkSize = [256, 256],
+    postNetworkSize = [512],
+    numQuantiles = 32,
+    embeddingDimension = 32,
     kappa = 1.0,
     trainingIterations = 4,
     tau = 0.001

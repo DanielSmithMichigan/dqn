@@ -252,7 +252,7 @@ class Agent:
         epsilon = 0
         if useRandomActions and (not self.disableRandomActions):
             self.epsilon = self.epsilon * self.epsilonDecay
-            epsilon = min(np.random.random() * self.epsilon, 1)
+            epsilon = min(1 * self.epsilon, 1)
             epsilon = max(epsilon, self.minExploration)
             epsilon = min(epsilon, self.maxExploration)
         self.epsilonOverTime.append(self.epsilon)
