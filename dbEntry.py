@@ -9,7 +9,7 @@ db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.
 experimentName = "iqn-learning-rate-extended"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-learningRateExp = np.random.uniform(low=-4, high=-2)
+learningRateExp = np.random.uniform(low=-3.5, high=-2)
 learningRate = pow(10, learningRateExp)
 a = Agent(
     sess=sess,
