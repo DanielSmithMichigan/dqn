@@ -34,8 +34,8 @@ a = Agent(
 
     # hyperparameters
     maxMemoryLength=int(1e6),
-    batchSize=256,
-    learningRate=1e-2,
+    batchSize=128,
+    learningRate=1e-3,
     priorityExponent= 0,
     epsilonInitial = 1,
     epsilonDecay = .9975,
@@ -45,11 +45,11 @@ a = Agent(
     maxGradientNorm = 5,
     preNetworkSize = [128, 128],
     postNetworkSize = [512],
-    numQuantiles = 32,
-    embeddingDimension = 64,
+    numQuantiles = 16,
+    embeddingDimension = 32,
     kappa = 1.0,
-    trainingIterations = 4,
-    tau = 0.01
+    trainingIterations = 3,
+    tau = 0.001
 )
 testResults = a.execute()
 

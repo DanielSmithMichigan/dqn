@@ -6,11 +6,11 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-tau"
+experimentName = "iqn-learning-rate-extended"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-tauExp = np.random.uniform(low=-1, high=-4)
-tau = 1 * pow(10, tauExp)
+learningRateExp = np.random.uniform(low=-4, high=-2)
+learningRate = pow(10, learningRateExp)
 a = Agent(
     sess=sess,
     env=env,
@@ -40,7 +40,7 @@ a = Agent(
     # hyperparameters
     maxMemoryLength=int(1e6),
     batchSize=256,
-    learningRate=1e-2,
+    learningRate=learningRate,
     priorityExponent= 0,
     epsilonInitial = 1,
     epsilonDecay = .9975,
@@ -51,14 +51,14 @@ a = Agent(
     preNetworkSize = [128, 128],
     postNetworkSize = [512],
     numQuantiles = 16,
-    embeddingDimension = 32,
+    embeddingDimension = 64,
     kappa = 1.0,
-    trainingIterations = 4,
-    tau = tau
+    trainingIterations = 3,
+    tau = .001
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, tau, 0, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, learningRate, 0, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()
