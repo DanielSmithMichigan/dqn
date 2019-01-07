@@ -39,7 +39,7 @@ a = Agent(
 
     # hyperparameters
     maxMemoryLength=int(1e6),
-    batchSize=256,
+    batchSize=128,
     learningRate=learningRate,
     priorityExponent= 0,
     epsilonInitial = 1,
