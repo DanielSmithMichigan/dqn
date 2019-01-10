@@ -97,6 +97,10 @@ class Network:
         self.previousEvaluationTarget = self.overview.add_subplot(2, 1, 2)
         self.previousTargetQuantileThresholds = np.zeros((self.numQuantiles,))
         self.previousTargetQuantileValues = np.zeros((self.numQuantiles,))
+
+        self.actionReasoning = plt.figure()
+        self.actionReasoningPlot = self.actionReasoning.add_subplot(2, 1, 1)
+        self.actionChoiceBar = self.actionReasoning.add_subplot(2, 1, 2)
     def updateGraphs(self):
         self.previousEvaluationLearned.cla()
         self.previousEvaluationLearned.set_title("Learned")
@@ -154,10 +158,10 @@ class Network:
         # Shape: batchSize x numQuantiles x numTargetQuantiles
         self.quantileRegressionLoss = self.sizedQuantiles * self.totalQuantileError / self.kappa
         # Shape: batchSize x numQuantiles x numTargetQuantiles
-        self.sumQuantileLoss = tf.reduce_sum(self.quantileRegressionLoss, axis=2)
-        self.batchwiseLoss = tf.reduce_sum(self.sumQuantileLoss, axis=1)
+        self.sumQuantileLoss = tf.reduce_mean(self.quantileRegressionLoss, axis=2)
+        self.batchwiseLoss = tf.reduce_mean(self.sumQuantileLoss, axis=1)
         # Shape: batchSize
-        self.proportionedLoss = (self.batchwiseLoss / self.memoryPriority) / self.numQuantiles
+        self.proportionedLoss = (self.batchwiseLoss / self.memoryPriority)
         # Shape: batchSize
         self.finalLoss = tf.reduce_mean(self.proportionedLoss)
         # Shape: 1
@@ -167,6 +171,33 @@ class Network:
         self.trainingOperation = self.optimizer.apply_gradients(zip(self.gradients, variables))
     def buildSoftCopyOperation(self, networkParams, tau):
         return [tf.assign(t, (1 - tau) * t + tau * e) for t, e in zip(self.networkParams, networkParams)]
+    def getAction(self, state):
+        (
+            actionChosen,
+            quantileValues,
+            quantileThresholds,
+            qValues
+        ) = self.sess.run([
+            self.chosenAction,
+            self.quantileValues,
+            self.quantileThresholds,
+            self.qValues
+        ], {
+            self.environmentInput: [state],
+            self.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(1, self.numQuantiles))
+        })
+        if self.showGraph:
+            self.actionReasoningPlot.cla()
+            self.actionReasoningPlot.set_title("Action Reasoning")
+            for i in range(self.numAvailableActions):
+                self.actionReasoningPlot.scatter(quantileThresholds, quantileValues[0][i], label=constants.ACTION_NAMES[i])
+            self.actionReasoningPlot.legend(loc=2)
+            self.actionReasoning.canvas.draw()
+            self.actionChoiceBar.cla()
+            self.actionChoiceBar.bar(constants.ACTION_NAMES, qValues[0])
+            self.actionChoiceBar.set_ylabel("Q Value")
+        # plt.pause(1)
+        return actionChosen[0]
     def trainAgainst(self, memoryUnits):
         actions = util.getColumn(memoryUnits, constants.ACTION)
         nextActions = self.sess.run(self.chosenAction, feed_dict={

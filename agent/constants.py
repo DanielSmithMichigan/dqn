@@ -12,4 +12,4 @@ OLD_PRIORITY = 8
 PRIORITY = 9
 POSITION = 10
 
-ACTION_NAMES = ["noop", "left", "main", "right"]
+ACTION_NAMES = ["noop", "right", "main", "left"]

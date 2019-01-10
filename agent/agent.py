@@ -4,6 +4,7 @@ from .buffer import Buffer
 from . import constants
 from . import util
 from .prioritized_experience_replay import PrioritizedExperienceReplay
+from .memoryBatcher import MemoryBatcher
 import numpy as np
 import tensorflow as tf
 import random
@@ -40,6 +41,7 @@ class Agent:
             includeIntermediatePairs,
             render,
             showGraph,
+            nStepReturns,
             epsilonInitial,
             epsilonDecay,
             numTestPeriods,
@@ -92,6 +94,9 @@ class Agent:
         self.disableRandomActions = disableRandomActions
         self.disableTraining = disableTraining
         self.numTestsPerTestPeriod = numTestsPerTestPeriod
+        self.memoryBatcher = MemoryBatcher(
+            nStepReturns=nStepReturns
+        )
         self.memoryBuffer = PrioritizedExperienceReplay(
             numMemories=maxMemoryLength,
             priorityExponent=priorityExponent,
@@ -115,7 +120,7 @@ class Agent:
         self.learnedNetwork = Network(
             name="learned-network-" + self.agentName,
             sess=sess,
-            showGraph=showGraph,
+            showGraph=False,
             numObservations=numObservations,
             numAvailableActions=numAvailableActions,
             learningRate=learningRate,
@@ -160,12 +165,7 @@ class Agent:
         self.agentAssessmentsOverTime.append(maxQ[0])
         self.recentAgentQValues = qValues[0]
     def getAction(self, state):
-        action = self.sess.run(self.learnedNetwork.chosenAction, {
-            self.learnedNetwork.environmentInput: [state],
-            self.learnedNetwork.quantileThresholds: np.random.uniform(low=0.0, high=1.0, size=(1, self.numQuantiles))
-        })[0]
-        # self.chosenActions[action] = self.chosenActions[action] + 1
-        return action
+        return self.learnedNetwork.getAction(state)
     def goToNextState(self, currentState, actionChosen, stepNum):
         nextState, reward, done, info = self.env.step(actionChosen)
         self.totalEpisodeReward = self.totalEpisodeReward + reward
@@ -251,7 +251,7 @@ class Agent:
         self.qValueExample.set_ylabel("Q Value")
         self.qValuesFigure.canvas.draw()
 
-        self.learnedNetwork.updateGraphs()
+        # self.learnedNetwork.updateGraphs()
         plt.pause(0.00001)
     def playEpisode(self, useRandomActions, recordTestResult, testNum=0):
         epsilon = 0
@@ -283,7 +283,7 @@ class Agent:
                 break
         self.rewardsReceivedOverTime.append(self.totalEpisodeReward)
         meanReward = np.mean(self.rewardsReceivedOverTime[-self.rewardsMovingAverageSampleLength:])
-        print("Episode ",len(self.rewardsReceivedOverTime),": ",meanReward)
+        print(self.agentName + " Episode ",len(self.rewardsReceivedOverTime),": ",meanReward)
         if self.saveModel:
             if meanReward > self.maxMeanReward:
                 self.maxMeanReward = meanReward
@@ -297,7 +297,8 @@ class Agent:
         agentChoices = agentChoices / sumChoices
         agentChoices[self.numAvailableActions] = epsilon
         self.choicesOverTime.append(agentChoices)
-        for i in reversed(self.episodeMemories):
+        # batchedEpisodeMemories = self.memoryBatcher.batch(self.episodeMemories)
+        for i in self.episodeMemories:
             self.memoryBuffer.add(i)
         if (recordTestResult):
             self.testResults.append(self.totalEpisodeReward)
@@ -306,7 +307,7 @@ class Agent:
             self.testResults = []
             for test_num in range(self.numTestsPerTestPeriod):
                 self.playEpisode(useRandomActions=False,recordTestResult=True,testNum=test_num)
-            print("Test "+str(len(self.testResults))+": "+str(np.mean(self.testResults)))
+            print("Agent: " + self.agentName + " Test "+str(len(self.testResults))+": "+str(np.mean(self.testResults)))
             self.testOutput.append(np.mean(self.testResults))
     def outOfTime(self):
         return time.time() > self.startTime + (self.maxRunningMinutes * 60)
