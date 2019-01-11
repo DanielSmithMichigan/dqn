@@ -6,11 +6,10 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-exploration-2"
+experimentName = "iqn-reward-scaling"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-explorationExp = np.random.uniform(low=-7, high=-4.5)
-epsilonDecay = 1 - pow(10, explorationExp)
+rewardScaling = pow(10, np.random.uniform(low=-2, high=0))
 a = Agent(
     sess=sess,
     env=env,
@@ -38,13 +37,14 @@ a = Agent(
     # agentName="agent_842763505",
 
     # hyperparameters
+    rewardScaling=rewardScaling,
     nStepReturns=1,
     maxMemoryLength=int(1e6),
     batchSize=64,
     learningRate=6.25e-4,
     priorityExponent= 0,
     epsilonInitial = 1,
-    epsilonDecay = epsilonDecay,
+    epsilonDecay = .999975,
     minExploration = .01,
     maxExploration = 1.0,
     minFramesForTraining = 2048,
@@ -59,7 +59,7 @@ a = Agent(
 )
 performance = a.execute()[0]
 cur = db.cursor()
-cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, epsilonDecay, 0, 0, 0, performance))
+cur.execute("insert into experiments (label, x1, x2, x3, x4, y) values ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')".format(experimentName, rewardScaling, 0, 0, 0, performance))
 db.commit()
 cur.close()
 db.close()

@@ -64,6 +64,7 @@ class Agent:
             loadModel,
             disableRandomActions,
             disableTraining,
+            rewardScaling,
             agentName="agent_" + str(np.random.randint(low=100000000, high=999999999))
         ):
         self.agentName = agentName
@@ -91,6 +92,7 @@ class Agent:
         self.showGraph = showGraph
         self.saveModel = saveModel
         self.loadModel = loadModel
+        self.rewardScaling = rewardScaling
         self.disableRandomActions = disableRandomActions
         self.disableTraining = disableTraining
         self.numTestsPerTestPeriod = numTestsPerTestPeriod
@@ -172,7 +174,7 @@ class Agent:
         memoryEntry = np.array(np.zeros(constants.NUM_MEMORY_ENTRIES), dtype=object)
         memoryEntry[constants.STATE] = currentState
         memoryEntry[constants.ACTION] = actionChosen
-        memoryEntry[constants.REWARD] = reward
+        memoryEntry[constants.REWARD] = reward * self.rewardScaling
         memoryEntry[constants.NEXT_STATE] = nextState
         memoryEntry[constants.GAMMA] = self.gamma if not done else 0
         memoryEntry[constants.IS_TERMINAL] = done
