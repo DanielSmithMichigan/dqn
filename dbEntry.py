@@ -9,7 +9,7 @@ db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.
 experimentName = "iqn-exploration-2"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-explorationExp = np.random.uniform(low=-5, high=-3.5)
+explorationExp = np.random.uniform(low=-7, high=-4.5)
 epsilonDecay = 1 - pow(10, explorationExp)
 a = Agent(
     sess=sess,
