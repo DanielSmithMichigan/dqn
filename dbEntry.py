@@ -6,10 +6,10 @@ import tensorflow as tf
 import gym
 db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.com", user="dsmith682101", passwd=os.environ['MYSQL_PASS'], db="dqn_results")
 
-experimentName = "iqn-exploration"
+experimentName = "iqn-exploration-2"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-explorationExp = np.random.uniform(low=-4, high=-2)
+explorationExp = np.random.uniform(low=-5, high=-3.5)
 epsilonDecay = 1 - pow(10, explorationExp)
 a = Agent(
     sess=sess,
@@ -51,8 +51,8 @@ a = Agent(
     maxGradientNorm = 5,
     preNetworkSize = [128,128],
     postNetworkSize = [256],
-    numQuantiles = 12,
-    embeddingDimension = 24,
+    numQuantiles = 8,
+    embeddingDimension = 16,
     kappa = 1.0,
     trainingIterations = 3,
     tau = 0.001
