@@ -9,7 +9,7 @@ db = MySQLdb.connect(host="dqn-db-instance.coib1qtynvtw.us-west-2.rds.amazonaws.
 experimentName = "iqn-reward-scaling"
 env = gym.make('LunarLander-v2')
 sess = tf.Session()
-rewardScaling = pow(10, np.random.uniform(low=-1, high=-.5))
+rewardScaling = pow(10, np.random.uniform(low=-2, high=-1))
 a = Agent(
     sess=sess,
     env=env,
